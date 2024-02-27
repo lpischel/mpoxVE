@@ -21,9 +21,7 @@ Here we wish to estimate the vaccine effeciveness (VE) of vaccines with efficacy
 
 ### Executing program
 
-* How to run the program
-* Step-by-step bullets
-
+* setwd and run rmd file
 
 ## Authors
 
