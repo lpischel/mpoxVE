@@ -1,0 +1,2233 @@
+---
+title: "MetaAnalysis Mpox Vaccine effectivness- preliminary analysis"
+author: "Lauren Pischel, Mahder Tracy, Brett Martini, Kolambi Kharbanda, David Cacesse, Nattall Yu, Amyn Malik, Noureen Ahmed, Kavin Patel, George Goshua, Alyssa Grimshaw, Saad B Omer"
+date: "2024-02-27"
+output:
+  html_document:
+    keep_md: yes
+  mainfont: Arial
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(dev = "png",
+                      dpi = 1000, 
+                      echo = FALSE,
+                      #cache = TRUE,  # save prior knits so it doesn't take forever  
+                      warning= TRUE, # remove warnings later when finishing analysis
+                      options(scipen=999)) 
+```
+## MetaAnalysis of Mpox vaccine effectiveness
+
+```{r, include=FALSE}
+# load packages
+library(meta)
+library(metasens)
+library(metafor)
+library(tidyverse)
+library(dplyr)
+library(readxl)
+library(survival)
+library(knitr)
+library(epitools)
+library(epiR)
+```
+
+
+```{r, include=FALSE}
+# #setwd
+# 
+# #load data with 1st and 3rd gen VE (1st gen data not published yet)
+# data_long<- read_excel("SR_Monkeypox_V_2023_07_21_Concensus_VE_long.xlsx", .name_repair = "universal")%>%
+#   select("Effect.Measure.v.descriptive",
+#          "PMID",
+#          "First.Author",
+#          "Published",
+#          "Year.Published",
+#          "Include.area":"Study.type",
+#          "Vaccine.type",
+#          "Vaccine.strategy",
+#          "Number.doses.MVA.BN",
+#          "Subcutaneous.or.intradermal.MVA.BN",
+#          "Intervention.status",
+#          "Dates.of.Outbreak",
+#          "Country.of.outbreak",
+#          "Population.description":"Exclusion.Criteria",
+#          "Total.cohort.size.or.close.contact.pool":"n.not.hospitalized.unvaccinated",
+#          "Limitations":"Internal.notes.for.coding"
+#          ) %>%
+#   mutate(Country.of.outbreak=replace(Country.of.outbreak,Country.of.outbreak=="United States", "USA")) # clean country name
+#   
+# # create distinct list of unique papers
+# data_papers<- data_long %>%
+#   distinct(PMID, .keep_all=TRUE) 
+# 
+# table(data_papers$Vaccine.type)
+# 
+# #create MVA_BN summary of papers
+# MVA_BN <- data_papers %>%
+#   filter(Vaccine.type=="Historic smallpox vaccine and 3rd gen"|
+#            Vaccine.type=="Historic smallpox vaccine, MVA-BN"|
+#            Vaccine.type=="MVA-BN"|
+#            Vaccine.type=="2 doses MVA-BN,1 dose ACAM200"| 
+#            Vaccine.type=="MVA-BN PEP cycle threshold viral culture")
+# 
+# table(MVA_BN$Include.area)
+# 
+# #write csv for github of wide format data
+# write.csv(MVA_BN, file ='/Users/lpischel/Desktop/MVA_BN.csv', row.names = FALSE)
+# 
+# #create long data of all VE measures 
+# MVA_BN_long <- data_long %>%
+#   filter(Vaccine.type=="Historic smallpox vaccine and 3rd gen"|
+#            Vaccine.type=="Historic smallpox vaccine, MVA-BN"|
+#            Vaccine.type=="MVA-BN"|
+#            Vaccine.type=="2 doses MVA-BN,1 dose ACAM200")
+# 
+# table(MVA_BN$Country.of.outbreak)
+# 
+# #write csv for github of long format data
+# write.csv(MVA_BN_long, file ='/Users/lpischel/Desktop/MVA_BN_long.csv', row.names = FALSE)
+# 
+# #summary country info
+# MVA_BN %>% filter(Country.of.outbreak!="International") %>% 
+#   filter(Country.of.outbreak!="European region")%>% 
+#   distinct(Country.of.outbreak) %>% 
+#   nrow()
+# 
+# MVA_BN %>% distinct(Country.of.outbreak) %>% nrow()
+# 
+# MVA_BN %>%  filter(Country.of.outbreak=="European region"|Country.of.outbreak=="International") %>% nrow()
+# 
+# MVA_BN %>% 
+#   filter(Country.of.outbreak!="European region") %>% 
+#            filter(Country.of.outbreak!="International") %>% distinct(Country.of.outbreak) %>% nrow()
+# 
+# MVA_BN %>% 
+#   filter(Country.of.outbreak!="European region") %>% 
+#            filter(Country.of.outbreak!="International") %>% distinct(Country.of.outbreak)
+# table(MVA_BN$Country.of.outbreak)
+
+```
+
+
+```{r gitsetup}
+#set up from github
+#setwd()
+MVA_BN <- read.csv("MVA_BN.csv")
+MVA_BN_long <- read.csv ("MVA_BN_long.csv")
+
+```
+
+
+```{r}
+#code below not to be run on git hub, 1st gen data not yet published
+# A total of **`r nrow(data_papers)`** unique papers provided **`r nrow(data_long)`** VE estimates for all vaccine types. 
+# 
+# Of these **`r data_papers %>% filter(Vaccine.type=="Historic smallpox vaccine") %>% nrow()`** papers concerned historic smallpox vaccination (e.g Dryvaxx), **`r data_papers%>% filter(Vaccine.type=="MVA-BN")%>% nrow() `** concerned 3rd generation Orthopox vaccines, all of which were MVA-BN. **`r data_papers%>% filter(Vaccine.type=="Historic smallpox vaccine and 3rd gen"|Vaccine.type=="Historic smallpox vaccine, MVA-BN" )%>% nrow() `** papers concerned both historic smallpox vaccines and MVA-BN estimates of VE .**`r data_papers%>% filter(Vaccine.type=="2 doses MVA-BN,1 dose ACAM200")%>% nrow() `** paper concerned both MVA-BN and ACAM200, **`r data_papers%>% filter(Vaccine.type=="Second generation (ACAM2000) or first generation (Dryvax)")%>% nrow() `** concerned Dryvax and ACAM200, and **`r data_papers%>% filter(Vaccine.type=="unclear")%>% nrow() `** was unclear stating simply "anti-variola vaccination. Two of these were re-analysis of data from previously published studies (Arbel PMID 37819966; Morales PMID 37616117).
+
+
+```
+
+
+
+Of the **`r nrow(MVA_BN)`** studies concerning 3rd generation Orthopoxvirus vaccines vaccine effectiveness, 1 study was not clear on the type of vaccine simply stating it was given as a part of the current outbreak (Garcia-Hernandez PMID 37017138), the remaining used a type of formulation of MVA-BN (e.g  Jynneos, Imvamune, Imvanex).
+
+These studies spanned **`r MVA_BN %>% filter(Country.of.outbreak!="European region") %>% filter(Country.of.outbreak!="International") %>% distinct(Country.of.outbreak) %>% nrow()-2`** countries . **`r MVA_BN %>%  filter(Country.of.outbreak=="European region"|Country.of.outbreak=="International") %>% nrow()`** studies were international or in the general European region. (2 subtracted from the code above since 1 study was from the Canary Islands, and Spain is already on the list of countryies, an then UK and England were combined)/
+
+Including sensitivity analysis, of these **`r nrow(MVA_BN)`** studies ( **`r nrow(MVA_BN_long)`** estimates) on MVA-BN, **`r MVA_BN %>%  filter(Include.area=="Infection") %>% nrow() `** studies provide information on the VE of infection (**`r MVA_BN_long %>%  filter(Include.area=="Infection") %>% nrow() `** estimates),  **`r MVA_BN %>%  filter(Include.area=="Severity") %>% nrow() `** on the VE of severity  (**`r MVA_BN_long %>%  filter(Include.area=="Severity") %>% nrow() `** estimates), and  **`r MVA_BN %>%  filter(Include.area=="Infection, Severity") %>% nrow() `** paper provides information on both  (**`r MVA_BN_long %>%  filter(Include.area=="Infection, Severity") %>% nrow() `** estimates).  **`r MVA_BN %>%  filter(Effect.Measure.v.descriptive=="Descriptive") %>% nrow() `** studies provided information that was descriptive or non-numeric regarding VE. Of these MVA_BN estimates **`r MVA_BN_long %>%  filter(Sensitivity=="Y") %>% nrow() `**  were sensitivity analysis performed by the study authors. 
+
+A total of **`r sum(as.numeric(MVA_BN$Total.cohort.size.or.close.contact.pool), na.rm=TRUE) `** participants were included in these studies, **`r sum(as.numeric(MVA_BN$Total.number.vaccinated.people), na.rm=TRUE)`** of whom received some type of vaccination (either historic vaccine, PEP, 1 dose of 2 dose of MVA-BN) and **`r sum(as.numeric(MVA_BN$Total.number.unvaccinated.people), na.rm=TRUE)`** who were unvaccinated. **`r sum(as.numeric(MVA_BN$Total.mpox.Cases), na.rm=TRUE)`**
+
+
+#Table of studies: baseline characteristics
+
+```{r table 1, echo=FALSE}
+#select desired columns
+MVA_BN_table <- MVA_BN %>%
+  select("PMID",
+         "First.Author",
+         "Year.Published",
+         "Study.type",
+         "Include.area",
+         "Dates.of.Outbreak",
+         "Vaccine.strategy",
+         "Number.doses.MVA.BN",
+         "Subcutaneous.or.intradermal.MVA.BN",
+         "Population.description",
+         "Total.cohort.size.or.close.contact.pool",
+         "Total.number.vaccinated.people",
+         "Total.mpox.Cases",
+        "Cohort.cis.male.n"
+    )
+
+#create table
+knitr::kable(MVA_BN_table,col.names = gsub("[.]", " ",names(MVA_BN_table)))
+
+# select columns and create table for S_T2
+MVA_BN_S_T1 <- MVA_BN %>%
+  select("PMID",
+         "First.Author",
+         "Year.Published",
+         "Study.Funding.source.s.",
+         "Possible.Conflict.of.interest.for.study.authors",
+         "Inclusion.Criteria",
+         "Exclusion.Criteria",
+         "Cohort.Age...median.or.description.":"Cohort.age.vaccinated.sd",
+         "n.Non.Hispanic.White":"n.HIV.positive"
+    )
+
+knitr::kable(MVA_BN_S_T1,col.names = gsub("[.]", " ",names(MVA_BN_S_T1)))
+```
+
+# VE for Infection
+
+# PEP all estimates
+
+```{r PEP, echo=FALSE, fig.width=10,fig.height=5, dpi=1000}
+
+MVA_BN_PEP <- MVA_BN_long%>%
+  filter(VE.type=="1 dose MVA-BN 0-13 days"|
+           VE.type=="1 dose MVA-BN PEP"|
+           VE.type=="1 dose MVA-BN PEP < 14 days after last exposure (method 1: mutlivariable regression)"|
+           VE.type=="1 dose MVA-BN PEP < 14 days after last exposure (method 2: target trial)"|
+           VE.type=="1 dose MVA-BN <14 days after first exposure (method 1 multivariable regression)"|
+           VE.type=="1 dose MVA-BN <14 days after first exposure (method 2 target trial)"|
+           VE.type =="MVA-BN PEP all high risk contact"|
+           VE.type =="MVA-BN 1 dose 0-13 days since vaccination"|
+           VE.type =="1 dose MVA-BN 0-13 days after first dose"
+           )%>%
+  filter(Sensitivity=="N")%>% #remove sensitivity analysis
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type",
+        "Measure..HR..IRR..RR..cumulative.incidence..attack.rate.etc.",
+         "VE.outcome":"Effect.Est.upper.95.CI")%>%
+  mutate(VE.outcome = as.numeric(VE.outcome))%>% # make numeric
+  mutate(Lower.CI = as.numeric(Lower.CI))%>% # make numeric
+  mutate(Upper.CI = as.numeric(Upper.CI))%>%# make numeric
+  mutate(Central.Effect.Estimate.reported = as.numeric(Central.Effect.Estimate.reported)) %>%# make numeric
+  mutate(Effect.Est.lower.95.CI = as.numeric(Effect.Est.lower.95.CI)) %>% # make numeric
+  mutate(Effect.Est.upper.95.CI = as.numeric(Effect.Est.upper.95.CI))# make numeric
+
+
+# create table for 1 dose MVA_BN
+knitr::kable(MVA_BN_PEP,col.names = gsub("[.]", " ",names(MVA_BN_PEP)))
+
+m.MVA_BN_PEP<-  metagen(
+  TE = (VE.outcome*100),
+  lower= (Lower.CI*100),
+  upper = (Upper.CI*100),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  data= MVA_BN_PEP, 
+  method.tau = "REML",
+  title = "PEP",
+  sm = "VE",
+  backtransf = FALSE)  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+
+# print(MVA_BN_PEP) 
+forest(m.MVA_BN_PEP, 
+       sortvar = TE,
+      smlab = "VE (95% CI)",
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination",
+       leftlabs = c("Study", "VE", "SE"))
+
+MVA_BN_descriptive <- MVA_BN_long%>%
+  filter(Effect.Measure.v.descriptive=="descriptive"|
+           Effect.Measure.v.descriptive=="Descriptive") %>%
+  select("Effect.Measure.v.descriptive",
+         "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type")
+           
+
+```
+
+
+PEP Funnel
+```{r PEP_funnel_OR,echo=FALSE, dpi=1000}
+#funnel PEP 
+# change VE to RR
+
+#filter
+MVA_BN_PEP_f <- MVA_BN_PEP %>%
+  filter(Lower.CI >= -1)%>% # remove CI < -1 since too wide for meaningful estimates 
+  mutate(Central.Effect.Estimate.reported = ifelse(VE.outcome<0,(1/(VE.outcome +1)),(1-VE.outcome)))%>%
+  mutate(Effect.Est.upper.95.CI = ifelse(Lower.CI<0,(1/(Lower.CI +1)),(1-Lower.CI)))%>%
+  mutate(Effect.Est.lower.95.CI = ifelse(Upper.CI<0,(1/(Upper.CI +1)),(1-Upper.CI)))
+  
+#make meta
+m.MVA_BN_PEP_funnel<-  metagen(
+  TE = (log(Central.Effect.Estimate.reported)),
+  lower= (log(Effect.Est.lower.95.CI)),
+  upper = (log(Effect.Est.upper.95.CI)),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  data= MVA_BN_PEP_f,
+  method.tau = "REML",
+  title = "PEP",
+  sm = "OR",
+  backtransf = FALSE)  #
+
+
+# forest plot
+forest(m.MVA_BN_PEP_funnel,
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       label.left = "Favors control" ,
+       label.right = "Favors vaccination",
+       leftlabs = c("Study", "RR", "SE"))
+
+funnel(m.MVA_BN_PEP_funnel,
+       contour.levels = c(0.9,0.95,0.99), 
+       col.contour = c("darkgray","gray","lightgray"),
+       xlab = "ln(RR)")
+title("Funnel Plot (PEP)")#add title
+
+#Eggers
+# k= , too small for Eggers test
+
+```
+
+Conversion from negative VE or 95% CI to effect estimate:
+VE = -1 + 1/RR
+VE + 1= 1/RR
+RR = 1/ (VE +1)
+
+Similar to  below, CI -100$% counted as NA: "A CI was reported as -/+ infinity or a CI was reported as less than - 100% (i.e., -189.8%)
+We treated “infinity” or “less than -100%”as a missing value. We reasoned such estimates would have large enough errors as to be too imprecise to warrant including within our models." from supplement of https://www.thelancet.com/journals/lanres/article/PIIS2213-2600(23)00015-2/fulltext#sec1
+
+
+#PEP 1 estimates per paper
+```{r PEP 1 estimate, echo=FALSE, fig.width=10,fig.height=5, dpi=1000}
+
+MVA_BN_PEP_1 <- MVA_BN_PEP %>%
+  filter(Effect.Measure.v.descriptive != "43") %>%
+  filter(Effect.Measure.v.descriptive != "486") %>%
+  filter(Effect.Measure.v.descriptive != "44") # remove extras of Rosen 
+
+# create table for 1 dose MVA_BN
+knitr::kable(MVA_BN_PEP,col.names = gsub("[.]", " ",names(MVA_BN_PEP)))
+
+m.MVA_BN_PEP_1  <-  metagen(
+  TE = (VE.outcome*100),
+  lower= (Lower.CI*100),
+  upper = (Upper.CI*100),
+  #subset = (Effect.Measure.v.descriptive != "342"), # subset out van Ewijk, add back later when calc SAR
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  data= MVA_BN_PEP_1, 
+  method.tau = "REML",
+  title = "PEP",
+  sm = "VE",
+  backtransf = FALSE)  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+# print(MVA_BN_PEP) 
+forest(m.MVA_BN_PEP_1, 
+       sortvar = TE,
+       smlab = "VE (95% CI)",
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination",
+       leftlabs = c("Study", "VE", "SE"))
+
+
+```
+
+#PEP sensitivity 
+
+```{r PEP_sen,echo=FALSE, fig.width=10,fig.height=5, dpi=1000}
+
+m.MVA_BN_PEP_s  <-  metagen(
+  TE = (VE.outcome*100),
+  lower= (Lower.CI*100),
+  upper = (Upper.CI*100),
+  exclude = Effect.Measure.v.descriptive==c("14","80"),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  data= MVA_BN_PEP_1, 
+  method.tau = "REML",
+  title = "PEP",
+  sm = "VE",
+  backtransf = FALSE)  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+
+# print(MVA_BN_PEP) 
+forest(m.MVA_BN_PEP_s, 
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination",
+       leftlabs = c("Study", "VE", "SE"))
+
+m.MVA_BN_PEP_s  <-  metagen(
+  TE = (VE.outcome*100),
+  lower= (Lower.CI*100),
+  upper = (Upper.CI*100),
+  exclude = Effect.Measure.v.descriptive==c("279"),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  data= MVA_BN_PEP_1, 
+  method.tau = "REML",
+  title = "PEP",
+  sm = "VE",
+  backtransf = FALSE)  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+
+# print(MVA_BN_PEP) 
+forest(m.MVA_BN_PEP_s, 
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination",
+       leftlabs = c("Study", "VE", "SE"))
+
+```
+Article Rosen with excellent disucssion on difficulites with PEP VE estimate re immortal time bias, high risk of immortal time bias with long incubation period and would overestimate VE https://www.sciencedirect.com/science/article/pii/S0264410X23015128#b0080 
+
+[x] Include  van Ewijk in disucssion as well for PEP as "half of high risk contacts developed symptoms prior to the opportunity to have received PEP" ashttps://www.sciencedirect.com/science/article/pii/S0264410X23011830
+
+[x] CDC rec PEP 4 days after exposure
+
+[x] In Merad et al ( 36695469) reported similar cycle of quantifications between PEP vaccinated mpox cases and matched unvaccinated controls, however time to viral culture positivity was longer in vaccinated individuals suggesting a decrease in infectivity (96 hours, range <72-169 vs < 72 hrs range <72-240)
+
+
+[x] Timing Harza PMID 361787,37/90 cases were 1-7 days post 1st MVA-BN, 32/90 8-14 days post 1st MVA-BN vaccine. Median time from vaccination to infection was 8.5 days (IQR 4-13)
+
+[x] Morales stratified by timing of exposure to vaccination 0-6 days 85.5 (39.3-96.6), 7-13 day 90.2 (72.5-96.5), and 14-20 days 86.7 (44.0-96.9)
+
+[x] Fontan-Vela also stratified by timing "During the first 6 and 13 days, the estimated VE was −38.3% (95% CI, −332.7 to 46.4) and −14.1% (95% CI, −199.7 to 47.9), respectively, showing a nonstatistically significant higher risk of MPXV infection in the vaccinated group. At ≥7 days post-vaccination, the estimated VE was 65.0% (95% CI, 22.9 to 88.0), and it increased to 79.3% (95% CI, 33.3 to 100.0) at ≥14 days."
+
+[x] Van Ewijk contact type by PEP, PEP unvaccianted 5% call high risk contacts developed mpox, PEP vaccinated 7% developed mpox 
+(all high risk, sexual, direct skin to skin 342-343)
+
+
+# 
+```{r 1dose, echo=FALSE, fig.width=10,fig.height=5, dpi=1000}
+# VE 1 dose
+
+MVA_BN_1 <- MVA_BN_long%>%
+  filter(VE.type== "1 dose MVA-BN"|
+           VE.type== "1 dose MVA-BN PrEP"|
+           VE.type =="MVA-BN 1 dose Infection All-Admin"|
+           VE.type =="MVA-BN  1 dose Infection Sub-Quest adjusted- with survey data"|
+           VE.type == "MVA-BN 1 dose >= 14 days since vaccination")%>%
+  filter(Sensitivity=="N")%>% #remove sensitivity analysis
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type",
+            "Measure..HR..IRR..RR..cumulative.incidence..attack.rate.etc.",
+         "VE.outcome":"Upper.CI")%>%
+  mutate(VE.outcome = as.numeric(VE.outcome))%>% # make numeric and * by 100 
+  mutate(Lower.CI = as.numeric(Lower.CI))%>% # make numeric and * by 100 
+  mutate(Upper.CI = as.numeric(Upper.CI))# make numeric and * by 100 
+
+
+# create table for 1 dose MVA_BN
+knitr::kable(MVA_BN_1,col.names = gsub("[.]", " ",names(MVA_BN_1)))
+
+MVA_BN_1dose  <-  metagen(
+  TE = (VE.outcome*100),
+  lower= (Lower.CI*100),
+  upper = (Upper.CI*100),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  exclude = Effect.Measure.v.descriptive == "276",
+  data= MVA_BN_1, 
+  method.tau = "REML",
+  sm = "VE",
+  backtransf = FALSE
+  )  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+print(MVA_BN_1dose)
+
+forest(MVA_BN_1dose, 
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       prediction = FALSE , 
+       label.left = " Favors control" , 
+       label.right = "Favors vaccination",
+       leftlabs = c("Study", "VE", "SE"))
+
+
+
+```
+
+```{r 1dose_funnel_OR, echo=FALSE, dpi=1000}
+
+MVA_BN_1_OR <- MVA_BN_1 %>%
+  mutate(Upper.CI = ifelse(Upper.CI==1,.999,Upper.CI)) %>%# make Hens upper CI .999 from 1 so that don't have negative infinity problem with ln() later
+  mutate(Central.Effect.Estimate.reported = ifelse(VE.outcome<0,(1/(VE.outcome +1)),(1-VE.outcome)))%>%
+  mutate(Effect.Est.upper.95.CI = ifelse(Lower.CI<0,(1/(Lower.CI +1)),(1-Lower.CI)))%>%
+  mutate(Effect.Est.lower.95.CI = ifelse(Upper.CI<0,(1/(Upper.CI +1)),(1-Upper.CI)))
+
+#make this so we don't override existing data
+
+# take  of central effect + log 
+m.MVA_BN_1_OR  <-  metagen(
+  TE = (log(Central.Effect.Estimate.reported)), 
+  lower= (log(Effect.Est.lower.95.CI)),
+  upper = (log(Effect.Est.upper.95.CI)),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  exclude = ,
+  data= MVA_BN_1_OR, 
+  method.tau = "REML",
+  sm = "OR",
+  backtransf = FALSE  #unclear which is best to use
+  )  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+
+forest(m.MVA_BN_1_OR, 
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination",
+       leftlabs = c("Study", "OR", "SE"))
+
+# not taking the log, as shown in supplement https://www.thelancet.com/journals/lanres/article/PIIS2213-2600(23)00015-2/fulltext#sec1
+funnel(m.MVA_BN_1_OR, 
+       contour.levels = c(0.9,0.95,0.99), 
+       col.contour = c("darkgray","gray","lightgray"),
+       xlab = "ln(RR)") 
+title("Funnel Plot (1 dose MVA-BN)")#add title
+
+
+
+metabias(m.MVA_BN_1_OR, 
+         method.bias = "Egger") # did not suggest publication bias
+
+#trim fill and funnel
+tf <- trimfill(m.MVA_BN_1_OR)
+funnel(tf, 
+       contour.levels = c(0.9,0.95,0.99), 
+       col.contour = c("darkgray","gray","lightgray"),
+       xlab = "ln(RR)") 
+title("Funnel Plot (1 dose MVA-BN) +Trim and Fill")#add title
+
+# .5 VE => .5 OR =>take ln >  -.69, anything less thna .69 favors VE 
+# take the natural log since symmetry would not be expected from the OR, since can't get a negative OR 
+
+```
+Change hens to VE to .9999, otherwise gets to neg infinity with taking the natural log 
+Eggers did not suggest publication bias
+
+Not taking the log of the OR, need to look into how to fix this
+
+```{r 1dose_sen, echo=FALSE, fig.width=10,fig.height=5, dpi=100}
+MVA_BN_1dose.s  <-  metagen(
+  TE = (VE.outcome*100),
+  lower= (Lower.CI*100),
+  upper = (Upper.CI*100),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  exclude = Effect.Measure.v.descriptive == c("8","81","228"),
+  data= MVA_BN_1, 
+  method.tau = "REML",
+  sm = "VE",
+  backtransf = FALSE
+  )  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+
+forest(MVA_BN_1dose.s, 
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination",
+       leftlabs = c("Study", "VE", "SE"))
+
+
+MVA_BN_1dose.s  <-  metagen(
+  TE = (VE.outcome*100),
+  lower= (Lower.CI*100),
+  upper = (Upper.CI*100),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  exclude = Effect.Measure.v.descriptive == c("8","81","228"),
+  data= MVA_BN_1, 
+  method.tau = "REML",
+  sm = "VE",
+  backtransf = FALSE
+  )  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+
+forest(MVA_BN_1dose.s, 
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination",
+       leftlabs = c("Study", "VE", "SE"))
+```
+
+
+[x] In Fagerty PMID 37044128, noted that unvaccinated cases were more likely to abstain from sex before potential exposure (7/25 28%), than 1 dose MVA-BN vaccine recipients ( 2/15 13%)
+
+[x] Rosenberg >14 D after dose 1 or >=0 days after dose 2 included here since 10/12 were in the>=10 days since dose 1,  (75.7 ( 48.5-88.5)) (effect # 42)
+
+[x] In a conference abstract Ghosn 228 the number of doses "smallpox vaccination in 2022" was not clear an is included here in 1 dose. 
+
+[x] Arble MVA-BN descriptive letter the the editor 37819966 (re aalysis of deputy)"The choice of a control group with a lower-than-expected incidence of vaccine uptake is very likely to lower the estimated vaccine effectiveness.""When we applied the vaccine uptake of 45.5% that was previously reported by the CDC during the period ending October 1, 2022,3 the unadjusted vaccine effectiveness in the study by Deputy et al. increased and was similar to that reported in other studies"
+
+In the future do a multi-level meta anlysis #https://bookdown.org/MathiasHarrer/Doing_Meta_Analysis_in_R/multilevel-ma.html
+
+# 2nd dose
+using different definitions? Rosenberg uses >=0 days after dose 2
+
+```{r 2dose, echo=FALSE, fig.width=10,fig.height=5, dpi=1000}
+
+MVA_BN_2 <- MVA_BN_long%>%
+  filter(VE.type== "2 dose MVA-BN"|VE.type == "MVA-BN unknown dose")%>%
+  filter(Sensitivity=="N")%>% #remove sensitivity analysis
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type",
+                "Measure..HR..IRR..RR..cumulative.incidence..attack.rate.etc.",
+         "VE.outcome":"Upper.CI")%>%
+  mutate(VE.outcome = as.numeric(VE.outcome))%>% # make numeric and * by 100 
+  mutate(Lower.CI = as.numeric(Lower.CI))%>% # make numeric and * by 100 
+  mutate(Upper.CI = as.numeric(Upper.CI))# make numeric and * by 100 
+
+
+# create table for 1 dose MVA_BN
+knitr::kable(MVA_BN_2,col.names = gsub("[.]", " ",names(MVA_BN_2)))
+
+MVA_BN_2dose  <-  metagen(
+  TE = ((VE.outcome*100)),
+  lower= ((Lower.CI*100)),
+  upper = ((Upper.CI*100)),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  data= MVA_BN_2, 
+  method.tau = "REML",
+  sm ="VE",
+  backtransf = FALSE)  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+
+forest(MVA_BN_2dose, 
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination" ,
+       leftlabs = c("Study", "Central Effect", "SE"),
+       xlim = c(-100, 100)) #set x lim
+
+```
+
+
+"MVA-BN unknown dose" add
+
+```{r 2dosefunnel}
+
+MVA_BN_2dose_OR <- MVA_BN_2 %>%
+  #mutate(Upper.CI = ifelse(Upper.CI==1,.999,Upper.CI)) %>%# make Hens upper CI .999 from 1 so that don't have negative infinity problem with ln() later
+  mutate(Central.Effect.Estimate.reported = ifelse(VE.outcome<0,(1/(VE.outcome +1)),(1-VE.outcome)))%>%
+  mutate(Effect.Est.upper.95.CI = ifelse(Lower.CI<0,(1/(Lower.CI +1)),(1-Lower.CI)))%>%
+  mutate(Effect.Est.lower.95.CI = ifelse(Upper.CI<0,(1/(Upper.CI +1)),(1-Upper.CI)))
+
+#funnel 2 dose
+MVA_BN_2dose_OR  <-  metagen(
+  TE = (log(Central.Effect.Estimate.reported)),
+  lower= (log(Effect.Est.lower.95.CI)),
+  upper = (log(Effect.Est.upper.95.CI)),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  data= MVA_BN_2dose_OR, 
+  method.tau = "REML",
+  sm ="RR",
+  backtransf = FALSE)  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+
+funnel(MVA_BN_2dose_OR, 
+       contour.levels = c(0.9,0.95,0.99), 
+       col.contour = c("darkgray","gray","lightgray"),
+       xlab = "ln(RR)")
+title("Funnel Plot (2 dose MVA-BN)")#add title
+
+#not enough studies for Eggers/Trim fill 
+
+```
+
+
+```{r 2dose_sensi, echo=FALSE, fig.width=10,fig.height=5, dpi=1000}
+MVA_BN_2dose.s  <-  metagen(
+  TE = ((VE.outcome*100)),
+  lower= ((Lower.CI*100)),
+  upper = ((Upper.CI*100)),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  exclude = Effect.Measure.v.descriptive =="242",
+  data= MVA_BN_2, 
+  method.tau = "REML",
+  sm ="VE",
+  backtransf = FALSE)  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+
+forest(MVA_BN_2dose.s, 
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination" ,
+       leftlabs = c("Study", "Central Effect", "SE"))
+```
+
+Agusti not looking specifically at VE but reported 1/12 vaccinated in the past 12 months developed mpox, compared with 4/75 unvaccinated individuals
+
+# Severity 
+360 (25 cases, 335 controls) 2 doses, 1146 1 dose (146 case, 1000 control) (what is this note from?)
+-Adler #1 35623380
+
+```{r Severity_hosp, echo=FALSE, fig.width=10,fig.height=10, dpi=1000}
+# severity :
+
+"MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine hopsital"
+MVA_BN_Hosp <- MVA_BN_long%>%
+  filter(VE.type== "MVA-BN hospitalized"|
+           VE.type== "MVA-BN 1 dose hospitalized"|
+           VE.type== "MVA-BN 2 dose hospitalized"|
+            VE.type== "MVA-BN 1 dose PEP hospitalized"|
+           VE.type =="Any vaccine hospitalized"|
+         VE.type =="MVA-BN hospitalized"|
+           VE.type =="MVA-BN 1 dose moderate-severe disease"|
+           VE.type =="MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine hospital"|
+           VE.type =="1 or 2 doses MVA-BN Hospitalizaiton"|
+           VE.type == "Any vaccine - hospitalization SOT patients"|
+           VE.type == "MVA-BN Mpox severity score system"|
+           VE.type == "36082686 - Hospitalization")%>%
+  #  mutate(VE.type = str_replace(VE.type, "MVA-BN hospitalized", "1 or 2 doses MVA-BN hospitalized"))%>%
+  #      mutate(VE.type = str_replace(VE.type, "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine hopsital", "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine hospitalized"))%>%
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type",
+    "Vaccinated.or.cases.event":"n.unvaccinated.or.controls",
+         "VE.outcome":"Upper.CI")%>%
+  mutate(VE.outcome = as.numeric(VE.outcome))%>% # make numeric 
+  mutate(Lower.CI = as.numeric(Lower.CI))%>% # make numeric
+  mutate(Upper.CI = as.numeric(Upper.CI))# make numeric 
+
+MVA_BN_Hosp$VE.type.f <- factor(MVA_BN_Hosp$VE.type, levels = c("Any vaccine hospitalized", 
+                                                              "Any vaccine - hospitalization SOT patients", 
+                                                              "MVA-BN 1 dose moderate-severe disease",
+                                                              "MVA-BN Mpox severity score system",
+                                                              "MVA-BN 1 dose PEP hospitalized",
+                                                              "MVA-BN 1 dose hospitalized",
+                                                              "MVA-BN 2 dose hospitalized",
+                                                             "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine hospital",
+                                                              "MVA-BN hospitalized"))
+
+
+
+# create table for 1 dose MVA_BN
+knitr::kable(MVA_BN_Hosp,col.names = gsub("[.]", " ",names(MVA_BN_Hosp)))
+
+
+#meta analysis with meta package-- does not converge when multiply by 100, so just keeping as decimal for now
+m.MVA_BN_Hosp  <-  metagen(
+  TE = (VE.outcome),
+  lower= (Lower.CI),
+  upper = (Upper.CI),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  data= MVA_BN_Hosp,
+  #subgroup = TRUE,
+  byvar = VE.type.f,
+  comb.fixed = FALSE, 
+  comb.random =TRUE)
+
+
+m.MVA_BN_Hosp<- update( m.MVA_BN_Hosp,
+         subgroup.name = m.MVA_BN_Hosp$VE.type)
+
+#update subroup vaccine names
+forest(m.MVA_BN_Hosp, 
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination" ,
+       leftlabs = c("Study", "VE", "SE"))
+
+
+# #meta analysis with meta package-- does not converge when multiply by 100, so just keeping as decimal for now
+# m.MVA_BN_Hosp  <-  metagen(
+#   TE = (VE.outcome*100),
+#   lower= (Lower.CI*100),
+#   upper = (Upper.CI*100),
+#   studlab = paste(First.Author,"(",Year.Published,")"),
+#   data= MVA_BN_Hosp,
+#   #subgroup = TRUE,
+#   byvar = VE.type.f,
+#   comb.fixed = FALSE, 
+#   comb.random =TRUE)
+#   #rma.mv(verbose=TRUE, digits=5,control=list(maxiter=1000)))
+# #https://rdrr.io/cran/meta/man/metagen.html
+
+
+
+```
+
+
+```{r Severity_hosp_funnel, echo =FALSE}
+MVA_BN_hosp_RR <- MVA_BN_Hosp %>%
+  #mutate(Upper.CI = ifelse(Upper.CI==1,.999,Upper.CI)) %>%# make Hens upper CI .999 from 1 so that don't have negative infinity problem with ln() later
+  mutate(Central.Effect.Estimate.reported = ifelse(VE.outcome<0,(1/(VE.outcome +1)),(1-VE.outcome)))%>%
+  mutate(Effect.Est.upper.95.CI = ifelse(Lower.CI<0,(1/(Lower.CI +1)),(1-Lower.CI)))%>%
+  mutate(Effect.Est.lower.95.CI = ifelse(Upper.CI<0,(1/(Upper.CI +1)),(1-Upper.CI)))
+
+#funnel 2 dose
+m.MVA_BN_hosp_RR  <-  metagen(
+  TE = (log(Central.Effect.Estimate.reported)),
+  lower= (log(Effect.Est.lower.95.CI)),
+  upper = (log(Effect.Est.upper.95.CI)),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  data= MVA_BN_hosp_RR, 
+  method.tau = "REML",
+  sm ="RR",
+  backtransf = FALSE)  #error with "PM "Value of 'tau2.max' too low. Try increasing 'tau2.max' or switch to another 'method'. so used restricted maximum likelihood estimated since this is continuous not binary outcomes
+
+# print (m.MVA_BN_hosp_RR)
+# 
+# forest(m.MVA_BN_hosp_RR, 
+#        sortvar = TE,
+#               smlab = "VE (95% CI)",
+#        prediction = FALSE , 
+#        label.left = "Favors control" , 
+#        label.right = "Favors vaccination" ,
+#        leftlabs = c("Study", "VE", "SE"))
+
+funnel(m.MVA_BN_hosp_RR, 
+       contour.levels = c(0.9,0.95,0.99), 
+       col.contour = c("darkgray","gray","lightgray"),
+       xlab = "ln(RR)")
+title("Funnel Plot (2 dose MVA-BN)")#add title
+
+#not enough studies for Eggers/Trim fill 
+```
+```{r Sensitivity_hospital, echo =FALSE,fig.width=10,fig.height=10, dpi=300}
+#update subroup vaccine names
+
+m.MVA_BN_Hosp_sen  <-  metagen(
+  TE = (VE.outcome*100),
+  lower= (Lower.CI*100),
+  upper = (Upper.CI*100),
+  studlab = paste(First.Author,"(",Year.Published,")"),
+  exclude = First.Author ==c("Higgins"),
+  data= MVA_BN_Hosp,
+  #subgroup = TRUE,
+  byvar = VE.type.f,
+  comb.fixed = FALSE, 
+  comb.random =TRUE)
+
+
+m.MVA_BN_Hosp_sen<- update( m.MVA_BN_Hosp_sen,
+         subgroup.name = m.MVA_BN_Hosp_sen$VE.type)
+
+#update subgroup vaccine names
+forest(m.MVA_BN_Hosp_sen, 
+       sortvar = TE,
+              smlab = "VE (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors control" , 
+       label.right = "Favors vaccination" ,
+       leftlabs = c("Study", "VE", "SE"))
+
+```
+
+
+[x] In Kroger 36787016, all prior orthopoxvirus vaccination was combined, of the or 368 participants, 96 (26%) received a childhood smallpox vaccine and 33 received Imvanex ( 19 PEP and 14 PrEP). 6 received both.
+
+[x]x For Candella 36992376, of the 21 prior vaccinations, 20 were smallpox, only 1 was MVA-BN
+
+
+Broussea PMID 37769158 12 of 231 particiants in the All-admin population had moderate to severe disase, 3 were hospitalized, 6 had complications and 5 received tecovirimat 1 of the 12 (8%) received MVA-BN, compared with 101/301 (34%) controlls. VE 82, 95% -39-98); or 82% (-50-98) adjusted
+
+[x] faherty ". The two hospitalized patients in this cluster had not received any mpox vaccine and had advanced HIV (<200 CD4 cells/mm3)."
+
+
+[x] Garcia Hernandez 37017138 no hospitalization reported in vaccinated (0/38) and 1 in unvaccination (1/138) unvaccianted individuals
+
+[x]  Higgins 403 transplante individuals, 1/3 vaccinated and 6/8 unvaccinated hospitalized. 
+
+[] aug Vaughan hospitalization 
+
+
+```{r death,}
+
+MVA_BN_IC <- MVA_BN_long%>%
+  filter(VE.type== "MVA-BN death")%>%
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type",
+    "Vaccinated.or.cases.event":"n.unvaccinated.or.controls",
+         "VE.outcome":"Upper.CI")%>%
+  mutate(VE.outcome = as.numeric(VE.outcome))%>% # make numeric 
+  mutate(Lower.CI = as.numeric(Lower.CI))%>% # make numeric
+  mutate(Upper.CI = as.numeric(Upper.CI))# make numeric 
+
+```
+
+Death Estevez #400
+Eusiaguio 5 deaths were reported in 1,647 unvax individuals whiles 0 reported in 100 vaccinated individuals (1 or 2 doses)
+
+
+```{r Severity_rash, echo=FALSE, fig.width=10,fig.height=35, dpi=1000}
+# severity :
+
+MVA_BN_Rash <- MVA_BN_long%>%
+  filter(VE.type== "MVA-BN Rash"| 
+           VE.type =="Any vaccine - Rash"|
+           VE.type =="unclear- rash difference"|
+           VE.type == "Any vaccine - Multiple sites"|
+           VE.type == "Any vaccine - Rash anogenital"|
+           VE.type == "Any vaccine - Rash Oropharyngeal or face"|
+           VE.type == "Any vaccine - Rash Trunk or limbs"|
+           VE.type =="Any vaccine - Severity Rash 5 body regions"|
+           VE.type == "Any vaccine - Severity Rash gr eq 3 body regions"|
+           VE.type == "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine affecting genitals"|
+           VE.type == "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine occular"|
+           VE.type == "MVA-BN 2-25 lesion"|
+           VE.type == "MVA-BN 25-100 lesions"|
+           VE.type == "MVA-BN anogenital mucosal lesions"|
+           VE.type == "MVA-BN anogenital skin lesions"|
+           VE.type == "MVA-BN both mucosal and skin lesions oral"|
+           VE.type == "MVA-BN both mucosal and skin lesions rectal"|
+           VE.type == "MVA-BN crust"|
+           VE.type == "MVA-BN erosion, ulceration"|
+           VE.type == "MVA-BN evolution residual lesion"|
+           VE.type == "MVA-BN evolution favorable"|
+           VE.type == "MVA-BN evolution superinfection"|
+           VE.type == "MVA-BN evolution unknown"|
+           VE.type == "MVA-BN face rash"|
+           VE.type == "MVA-BN location abdomen"|
+           VE.type == "MVA-BN location arm"|
+           VE.type == "MVA-BN location back"|
+           VE.type == "MVA-BN location buttocks"|
+           VE.type == "MVA-BN location chest"|
+           VE.type == "MVA-BN location facial"|
+           VE.type == "MVA-BN location feet"|
+           VE.type == "MVA-BN location genital"|
+           VE.type == "MVA-BN location groin or pubis"|
+           VE.type == "MVA-BN location hands"|
+           VE.type == "MVA-BN location legs"|
+           VE.type == "MVA-BN location neck"|
+           VE.type == "MVA-BN location oral cavity"|
+           VE.type == "MVA-BN location palm of hands"|
+           VE.type == "MVA-BN location perianal"|
+           VE.type == "MVA-BN location scalp"|
+           VE.type == "MVA-BN location soles of feet"|
+           VE.type == "MVA-BN macule"|
+           VE.type == "MVA-BN multiple ulcers"|
+           VE.type == "MVA-BN number lesions"|
+           VE.type == "MVA-BN oral mucosal lesions"|
+           VE.type == "MVA-BN papule"|
+           VE.type == "MVA-BN peri-oral lesions"|
+           VE.type == "MVA-BN pustule"|
+           VE.type == "MVA-BN Rash Arms"|
+           VE.type == "MVA-BN Rash Facial"|
+           VE.type == "MVA-BN Rash Genitals"|
+           VE.type == "MVA-BN Rash Head"|
+           VE.type == "MVA-BN Rash Legs"|
+           VE.type == "MVA-BN Rash location (n)"|
+           VE.type == "MVA-BN Rash Mouth"|
+           VE.type == "MVA-BN Rash Neck"|
+           VE.type == "MVA-BN Rash Other"|
+           VE.type == "MVA-BN Rash Palmar"|
+           VE.type == "MVA-BN Rash Perianal"|
+           VE.type == "MVA-BN Rash Trunk"|
+           VE.type == "MVA-BN rash trunk or limbs or both"|
+           VE.type == "MVA-BN Single lesion"|
+           VE.type == "MVA-BN single ulcer"|
+           VE.type == "MVA-BN size < 1mm"|
+           VE.type == "MVA-BN size 1-5 mm"|
+           VE.type == "MVA-BN size > 5 mm"|
+           VE.type == "MVA-BN umbilicated lesion"|
+           VE.type == "MVA-BN unkown"|
+           VE.type == "MVA-BN unkown number skin lesions"|
+           VE.type == "MVA-BN vesicle"|
+           VE.type == "MVA-BN vesicuo pustular"|
+           VE.type == "1 dose MBA-BN PEP severity N lesions"
+           )%>%
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+    "First.Author",
+    "Year.Published",
+    "VE.type",
+    "Vaccinated.or.cases.event",
+    "n.vaccinated.or.cases",
+    "unvaccinated..or.controls.event",
+    "n.unvaccinated.or.controls")%>%
+  mutate(unvaccinated..or.controls.event = as.numeric(unvaccinated..or.controls.event)) # make numeric 
+
+# # create table for 1 dose MVA_BN
+# knitr::kable(MVA_BN_Rash,col.names = gsub("[.]", " ",names(MVA_BN_Rash)))
+# 
+
+# m.rash = metabin(Vaccinated.or.cases.event, 
+#                 n.vaccinated.or.cases, 
+#                 unvaccinated..or.controls.event, 
+#                 n.unvaccinated.or.controls, 
+#                 data=MVA_BN_Rash, 
+#                 studlab = paste(First.Author,"(",Year.Published,")") , 
+#                  byvar = VE.type,
+#                 comb.fixed = FALSE,  #don't have fixed effect becasue mutliple levels
+#                 comb.random =TRUE,
+#                 method.tau = "PM", # Paule and Mandel method for binary outcomes
+#                 sm="OR")
+# 
+# m.rash<- update( m.rash,
+#          subgroup.name = m.rash$VE.type) #update subgroup names
+# 
+# forest(m.rash, 
+#        sortvar = TE,
+#               smlab = "VE (95% CI)",
+#        prediction = FALSE , 
+#        label.left = "Favors vaccination " , 
+#        label.right = "Favors control" )
+# 
+# # create correct levels
+# # too long, create greater break down
+
+
+#lets combine and clean some variables 
+MVA_BN_Rash <- MVA_BN_Rash %>%
+  mutate(VE.type = ifelse(VE.type == 'MVA-BN face rash', 'MVA-BN Rash Facial', VE.type))%>%
+  mutate(VE.type = ifelse(VE.type == 'MVA-BN location facial', 'MVA-BN Rash Facial', VE.type))%>%
+    mutate(VE.type = ifelse(VE.type == 'MVA-BN location legs', 'MVA-BN Rash Legs', VE.type))%>%
+  mutate(VE.type = ifelse(VE.type == 'MVA-BN location neck', 'MVA-BN Rash Neck', VE.type))%>%
+    mutate(VE.type = ifelse(VE.type == 'MVA-BN location genital', 'MVA-BN Rash Genitals', VE.type))%>% 
+    mutate(VE.type = ifelse(VE.type == 'MVA-BN location oral cavity', 'MVA-BN Rash Mouth', VE.type))%>%   
+      mutate(VE.type = ifelse(VE.type == 'MVA-BN location palm of hands', 'MVA-BN Rash Palmar', VE.type))%>%
+      mutate(VE.type = ifelse(VE.type == 'MVA-BN location abdomen', 'MVA-BN Rash Abdomen', VE.type)) %>%
+        mutate(VE.type = ifelse(VE.type == 'MVA-BN location arm', 'MVA-BN Rash Arms', VE.type)) %>%
+          mutate(VE.type = ifelse(VE.type == 'MVA-BN location back', 'MVA-BN Rash Back', VE.type)) %>%
+   mutate(VE.type = ifelse(VE.type == 'MVA-BN location buttocks', 'MVA-BN Rash Buttocks', VE.type)) %>%
+  mutate(VE.type = ifelse(VE.type == 'MVA-BN location chest', 'MVA-BN Rash Chest', VE.type)) %>%
+  mutate(VE.type = ifelse(VE.type == 'MVA-BN location feet', 'MVA-BN Rash Feet', VE.type)) %>%
+    mutate(VE.type = ifelse(VE.type == 'MVA-BN location groin or pubis', 'MVA-BN Rash Groin, Pubis', VE.type)) %>%
+   mutate(VE.type = ifelse(VE.type == 'MVA-BN location hands', 'MVA-BN Rash Hands', VE.type)) %>%
+     mutate(VE.type = ifelse(VE.type == 'MVA-BN location scalp', 'MVA-BN Rash Scalp', VE.type))%>%
+       mutate(VE.type = ifelse(VE.type == 'MVA-BN 2-25 lesion', 'MVA-BN 2-25 lesions', VE.type))%>%
+   mutate(VE.type = ifelse(VE.type == "MVA-BN location soles of feet", "MVA-BN Plantar", VE.type))
+  
+
+  
+  
+  #make factor
+
+# MVA_BN_Hosp$VE.type.f <- factor(MVA_BN_Hosp$VE.type, levels = c("Any vaccine hospitalized", 
+#                                                               "Any vaccine - hospitalization SOT patients", 
+#                                                               "MVA-BN 1 dose moderate-severe disease",
+#                                                               "MVA-BN Mpox severity score system",
+#                                                               "MVA-BN 1 dose PEP hospitalized",
+#                                                               "MVA-BN 1 dose hospitalized",
+#                                                               "MVA-BN 2 dose hospitalized",
+#                                                              "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine hospital",
+#                                                               "MVA-BN hospitalized"))
+
+                                                                               
+                                                                                
+                                                     
+
+
+```
+
+
+There are **`r n_distinct(MVA_BN_Rash$VE.type)`** VE measures for rash type from **`r n_distinct(MVA_BN_Rash$PMID)`**
+papers 
+note to self:add "           VE.type =="1 dose MBA-BN PEP severity N lesions"|"  and "MVA-BN Rash location (n)" to text
+
+
+
+
+
+
+```{r Severity_rash_location, fig.width=10, fig.height=30, dpi=300, echo=FALSE}
+# Location Rash
+
+MVA_BN_Rash_location <- MVA_BN_Rash%>%
+  filter(VE.type == "Any vaccine - Multiple sites"|
+           VE.type == "Any vaccine - Rash anogenital"|
+           VE.type == "Any vaccine - Rash Oropharyngeal or face"|
+           VE.type == "Any vaccine - Rash Trunk or limbs"|
+           VE.type =="Any vaccine - Severity Rash 5 body regions"|
+           VE.type == "Any vaccine - Severity Rash gr eq 3 body regions"|
+           VE.type == "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine affecting genitals"|
+           VE.type == "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine occular"|
+           VE.type == "MVA-BN anogenital mucosal lesions"|
+           VE.type == "MVA-BN anogenital skin lesions"|
+           VE.type == "MVA-BN both mucosal and skin lesions oral"|
+           VE.type == "MVA-BN both mucosal and skin lesions rectal"|
+           VE.type == "MVA-BN oral mucosal lesions"|
+           VE.type == "MVA-BN peri-oral lesions"|
+           VE.type == "MVA-BN Rash Arms"|
+           VE.type == "MVA-BN Rash Facial"|
+           VE.type == "MVA-BN Rash Genitals"|
+           VE.type == "MVA-BN Rash Head"|
+           VE.type == "MVA-BN Rash Legs"|
+           VE.type == "MVA-BN Rash location (n)"|
+           VE.type == "MVA-BN Rash Mouth"|
+           VE.type == "MVA-BN Rash Neck"|
+           VE.type == "MVA-BN Rash Hands"|
+           VE.type == "MVA-BN Rash Scalp"|
+           VE.type == "MVA-BN Rash Other"|
+           VE.type == "MVA-BN Rash Palmar"|
+           VE.type == "MVA-BN Rash Perianal"|
+           VE.type == "MVA-BN Rash Trunk"|
+           VE.type == "MVA-BN rash trunk or limbs or both"|
+           VE.type == "MVA-BN unkown"|
+          VE.type == "MVA-BN Rash Feet"|  
+            VE.type == 'MVA-BN Rash Chest'| 
+           VE.type == 'MVA-BN Rash Abdomen'| 
+            VE.type == 'MVA-BN Rash Back'| 
+           VE.type == "MVA-BN Plantar"|
+           VE.type == "MVA-BN Rash Groin, Pubis"|
+           VE.type == 'MVA-BN Rash Buttocks'
+  )
+
+#order variables
+MVA_BN_Rash_location$VE.type.f <- factor(MVA_BN_Rash_location$VE.type, levels = c("MVA-BN Rash Facial",
+                                                                         "MVA-BN Rash Head", 
+                                                                        "MVA-BN Rash Scalp",
+                                                                         "MVA-BN Rash Mouth",
+                                                                         "MVA-BN oral mucosal lesions",
+                                                                         "MVA-BN peri-oral lesions" ,
+                                                                         "MVA-BN both mucosal and skin lesions oral",
+                                                                          "MVA-BN Rash Neck",
+                                                                        'MVA-BN Rash Chest',
+                                                                         "MVA-BN Rash Arms",
+                                                                        'MVA-BN Rash Hands',
+                                                                         "MVA-BN Rash Palmar",
+                                                                         "MVA-BN Rash Trunk" ,
+                                                                        'MVA-BN Rash Abdomen',
+                                                                        'MVA-BN Rash Back',
+                                                                         "MVA-BN rash trunk or limbs or both",
+                                                                         "MVA-BN Rash Genitals",
+                                                                          "MVA-BN anogenital mucosal lesions",
+                                                                         "MVA-BN anogenital skin lesions",
+                                                                         "MVA-BN both mucosal and skin lesions rectal",
+                                                                        "MVA-BN Rash Groin, Pubis" ,
+                                                                         "MVA-BN Rash Perianal",
+                                                                        'MVA-BN Rash Buttocks',
+                                                                         "MVA-BN Rash Legs",
+                                                                        'MVA-BN Rash Feet',
+                                                                        "MVA-BN Plantar",
+                                                                         "MVA-BN Rash Other",
+                                                                       "MVA-BN unkown",
+                                                                         "MVA-BN Rash location (n)",
+                                                                         "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine affecting genitals",
+                                                                        "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine occular",
+                                                                        "Any vaccine - Rash Oropharyngeal or face",
+                                                                          "Any vaccine - Rash anogenital",
+                                                                         "Any vaccine - Severity Rash gr eq 3 body regions",
+                                                                         "Any vaccine - Severity Rash 5 body regions",
+                                                                        "Any vaccine - Rash Trunk or limbs",
+                                                                        "Any vaccine - Multiple sites"))
+
+
+#create table
+knitr::kable(MVA_BN_Rash_location,col.names = gsub("[.]", " ",names(MVA_BN_Rash_location)))
+
+
+m.MVA_BN_Rash_location = metabin(Vaccinated.or.cases.event,
+                n.vaccinated.or.cases,
+                unvaccinated..or.controls.event,
+                n.unvaccinated.or.controls,
+                data=MVA_BN_Rash_location,
+                studlab = paste(First.Author,"(",Year.Published,")") ,
+                 byvar = VE.type.f,
+                comb.fixed = FALSE,  #don't have fixed effect b/c multiple levels
+                comb.random =TRUE,
+                method.tau = "PM", # Paule and Mandel method for binary outcomes
+                sm="OR")
+
+
+m.MVA_BN_Rash_location<- update( m.MVA_BN_Rash_location,
+         subgroup.name = m.MVA_BN_Rash_location$VE.type)
+
+#update sugroup vaccine names
+forest(m.MVA_BN_Rash_location, 
+       sortvar = TE,
+              smlab = "OR (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors vaccination" , 
+       label.right = "Favors control",
+       leftlabs = c("Study", "VE", "SE"))
+
+
+#mean lesions adlver et al
+a<-c(150,100,100,40,30,10)
+
+
+```
+number of unique VEs for rash location: **`r n_distinct(MVA_BN_Rash_location$VE.type)`**
+number of unique papers for rash location: **`r n_distinct(MVA_BN_Rash_location$PMID)`**
+
+mean number of lesions Adler et al vax:`r mean(a)`, sd `r sd(a)` 
+
+
+
+```{r Severity_rash_n_lesions, fig.width=10, fig.height=7, dpi=300, echo=FALSE}
+
+# N lesions
+MVA_BN_Rash_n_lesions <- MVA_BN_Rash%>%
+  filter(VE.type == "MVA-BN 2-25 lesions"|
+           VE.type == "MVA-BN 25-100 lesions"|
+          VE.type == "MVA-BN number lesions"|
+          VE.type == "MVA-BN Single lesion"|
+           VE.type == "MVA-BN unkown number skin lesions"|
+           VE.type== "MVA-BN Rash"| 
+           VE.type =="Any vaccine - Rash"|
+           VE.type =="unclear- rash difference"|
+           VE.type == "1 dose MBA-BN PEP severity N lesions"
+  )
+
+MVA_BN_Rash_n_lesions$VE.type.f <- factor(MVA_BN_Rash_n_lesions$VE.type, 
+                                          levels = c( "Any vaccine - Rash",
+                                                      "MVA-BN Rash",
+                                                      "MVA-BN Single lesion",
+                                                       "MVA-BN 2-25 lesions",
+                                                      "MVA-BN 25-100 lesions",
+                                                      "MVA-BN unkown number skin lesions",
+                                                      "unclear- rash difference",
+                                                      "MVA-BN number lesions",
+                                                      "1 dose MBA-BN PEP severity N lesions"))
+                                                                                     
+#create table
+knitr::kable(MVA_BN_Rash_n_lesions,col.names = gsub("[.]", " ",names(MVA_BN_Rash_n_lesions)))
+
+
+m.MVA_BN_Rash_n_lesions = metabin(Vaccinated.or.cases.event,
+                n.vaccinated.or.cases,
+                unvaccinated..or.controls.event,
+                n.unvaccinated.or.controls,
+                data=MVA_BN_Rash_n_lesions,
+                studlab = paste(First.Author,"(",Year.Published,")") ,
+                 byvar = VE.type.f,
+                comb.fixed = FALSE,  #don't have fixed effect b/c multiple levels
+                comb.random =TRUE,
+                method.tau = "PM", # Paule and Mandel method for binary outcomes
+                sm="OR")
+
+
+m.MVA_BN_Rash_n_lesions<- update( m.MVA_BN_Rash_n_lesions,
+         subgroup.name = m.MVA_BN_Rash_n_lesions$VE.type)
+
+#update sugroup vaccine names
+forest(m.MVA_BN_Rash_n_lesions, 
+       sortvar = TE,
+              smlab = "OR (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors vaccination" , 
+       label.right = "Favors control",
+       leftlabs = c("Study", "VE", "SE"))
+
+
+```
+number of unique VEs for rash location: **`r n_distinct(MVA_BN_Rash_n_lesions$VE.type)`**
+number of unique papers for rash location: **`r n_distinct(MVA_BN_Rash_n_lesions$PMID)`**
+
+```{r Severity_rash_type, fig.width=10, fig.height=10, dpi=300, echo=FALSE}
+
+# Rash type
+MVA_BN_Rash_type <- MVA_BN_Rash%>%
+  filter(   VE.type == "MVA-BN macule"|
+            VE.type == "MVA-BN papule"|
+            VE.type == "MVA-BN pustule"|
+            VE.type == "MVA-BN vesicle"|
+           VE.type == "MVA-BN vesicuo pustular"|
+          VE.type == "MVA-BN umbilicated lesion"|
+          VE.type == "MVA-BN crust"|
+           VE.type == "MVA-BN erosion, ulceration"|
+             VE.type == "MVA-BN single ulcer"|
+             VE.type == "MVA-BN multiple ulcers"|
+          VE.type == "MVA-BN size < 1mm"|
+           VE.type == "MVA-BN size 1-5 mm"|
+           VE.type == "MVA-BN size > 5 mm"
+  )
+
+MVA_BN_Rash_type$VE.type.f <- factor(MVA_BN_Rash_type$VE.type, 
+                                          levels = c("MVA-BN macule",
+                                                     "MVA-BN papule",
+                                                     "MVA-BN pustule",
+                                                     "MVA-BN vesicle",
+                                                     "MVA-BN vesicuo pustular",
+                                                     "MVA-BN umbilicated lesion",
+                                                     "MVA-BN crust",
+                                                     "MVA-BN erosion, ulceration",
+                                                     "MVA-BN single ulcer",
+                                                     "MVA-BN multiple ulcers",
+                                                     "MVA-BN size < 1mm",
+                                                     "MVA-BN size 1-5 mm",
+                                                     "MVA-BN size > 5 mm"))
+                                                                                     
+
+#create table
+knitr::kable(MVA_BN_Rash_type,col.names = gsub("[.]", " ",names(MVA_BN_Rash_type)))
+
+
+m.MVA_BN_Rash_type = metabin(Vaccinated.or.cases.event,
+                n.vaccinated.or.cases,
+                unvaccinated..or.controls.event,
+                n.unvaccinated.or.controls,
+                data=MVA_BN_Rash_type,
+                studlab = paste(First.Author,"(",Year.Published,")") ,
+                 byvar = VE.type.f,
+                comb.fixed = FALSE,  #don't have fixed effect b/c multiple levels
+                comb.random =TRUE,
+                method.tau = "PM", # Paule and Mandel method for binary outcomes
+                sm="OR")
+
+
+m.MVA_BN_Rash_type<- update( m.MVA_BN_Rash_type,
+         subgroup.name = m.MVA_BN_Rash_type$VE.type)
+
+#update subgroup vaccine names
+forest(m.MVA_BN_Rash_type, 
+       sortvar = TE,
+              smlab = "OR (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors vaccination" , 
+       label.right = "Favors control",
+       leftlabs = c("Study", "VE", "SE"))
+
+
+```
+
+number of unique VEs for rash type: **`r n_distinct(MVA_BN_Rash_type$VE.type)`**
+number of unique papers for rash type: **`r n_distinct(MVA_BN_Rash_type$PMID)`**
+
+```{r Severity_rash_evolution, fig.width=10, fig.height=7, dpi=300, echo=FALSE}
+
+# Rash evolution
+MVA_BN_Rash_evolution <- MVA_BN_Rash%>%
+  filter(  VE.type == "MVA-BN evolution favorable"|
+           VE.type == "MVA-BN evolution superinfection"|
+          VE.type == "MVA-BN evolution residual lesion"|                                        
+          VE.type == "MVA-BN evolution unknown"  
+          )
+
+MVA_BN_Rash_evolution$VE.type.f <- factor(MVA_BN_Rash_evolution$VE.type, 
+                                          levels = c("MVA-BN evolution favorable",
+                                                     "MVA-BN evolution superinfection",
+                                                     "MVA-BN evolution residual lesion",
+                                                     "MVA-BN evolution unknown"))
+
+#create table
+knitr::kable(MVA_BN_Rash_evolution,col.names = gsub("[.]", " ",names(MVA_BN_Rash_evolution)))
+
+
+m.MVA_BN_Rash_evolution = metabin(Vaccinated.or.cases.event,
+                n.vaccinated.or.cases,
+                unvaccinated..or.controls.event,
+                n.unvaccinated.or.controls,
+                data=MVA_BN_Rash_evolution,
+                studlab = paste(First.Author,"(",Year.Published,")") ,
+                 byvar = VE.type.f,
+                comb.fixed = FALSE,  #don't have fixed effect b/c multiple levels
+                comb.random =TRUE,
+                method.tau = "PM", # Paule and Mandel method for binary outcomes
+                sm="OR")
+
+m.MVA_BN_Rash_evolution<- update( m.MVA_BN_Rash_evolution,
+         subgroup.name = m.MVA_BN_Rash_evolution$VE.type)
+
+#update subgroup vaccine names
+forest(m.MVA_BN_Rash_evolution, 
+       sortvar = TE,
+              smlab = "OR (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors vaccination" , 
+       label.right = "Favors control",
+       leftlabs = c("Study", "VE", "SE"))
+
+
+```
+
+number of unique VEs for rash type: **`r n_distinct(MVA_BN_Rash_evolution$VE.type)`**; 
+number of unique papers for rash type: **`r n_distinct(MVA_BN_Rash_evolution$PMID)`**
+
+LP note: Check against the  meta of Rash data frame to make sure you didn't miss-sort anything
+
+
+```{r other_severity_const, echo=FALSE, fig.width=10, fig.height=20, dpi=1000}
+# severity :
+
+MVA_BN_severity <- MVA_BN_long%>%
+  filter(VE.type== "Any vaccine - Fever"|
+          VE.type== "Any vaccine - Lymphadenopathy"|
+           VE.type == "Any vaccine - Myalgia exhaustion"|
+           VE.type == "Any vaccine - Pharyngitis"|
+           VE.type == "any vaccine- bacterial secondary infection"|
+           VE.type == "MVA-BN Abdominal pain"|
+           VE.type == "MVA-BN arthralgias"|
+           VE.type == "MVA-BN asthenia"|
+           VE.type == "MVA-BN axillary adenopathies"|
+           VE.type == "MVA-BN Chills"|
+           VE.type == "MVA-BN Conjunctivitis"|
+           VE.type == "MVA-BN constitutional symptoms (fever, headaches, malasiae, myalgia, chills, or lymphadenopathy)"|
+           VE.type == "MVA-BN Fever"|
+           VE.type == "MVA-BN general symptoms"|
+           VE.type == "MVA-BN Headache"|
+           VE.type == "MVA-BN inguinal adenopathies"|
+           VE.type == "MVA-BN Lymphadenopathy"|
+           VE.type == "MVA-BN Malaise"|
+           VE.type == "MVA-BN Myalgia"|
+           VE.type == "MVA-BN myalgias, dysthermic sensation"|
+           VE.type == "MVA-BN Nausea/vomiting"|
+           VE.type == "MVA-BN other symptoms"|
+            VE.type == "MVA-BN odynophagia"|
+           VE.type == "MVA-BN polysymptomatic disease"|
+           VE.type == "MVA-BN Proctitis"|
+           VE.type =="MVA-BN procttits"|
+           VE.type == "MVA-BN Pruritus"|
+           VE.type == "MVA-BN pruritus"|
+           VE.type == "MVA-BN Pus in Stool"|
+           VE.type == "MVA-BN Rectal bleeding"|
+           VE.type == "MVA-BN rectal discharge, anal pain"|
+           VE.type == "MVA-BN Rectal pain"|
+           VE.type == "MVA-BN Rectal symtpoms or abdominal pain (including bleeding, pus, proctitis, tenesmus)"|
+           VE.type == "MVA-BN Tenesmus"|
+           VE.type == "MVA-BN urethral exudate, dysuria"|
+            VE.type == "MVA-BN ocular rash"|
+         VE.type == "MVA-BN constitutional symptoms (fever, headaches, malaise, myalgia, chills, or lymphadenopathy)"
+           )%>%
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+    "First.Author",
+    "Year.Published",
+    "VE.type",
+    "Vaccinated.or.cases.event",
+    "n.vaccinated.or.cases",
+    "unvaccinated..or.controls.event",
+    "n.unvaccinated.or.controls")%>%
+  mutate(unvaccinated..or.controls.event = as.numeric(unvaccinated..or.controls.event)) %>% # make numeric 
+  mutate(VE.type = ifelse(VE.type == "MVA-BN procttits","MVA-BN Proctitis", VE.type)) %>%# clean 
+    mutate(VE.type = ifelse(VE.type == "MVA-BN pruritus","MVA-BN Pruritus", VE.type)) %>%
+  mutate(VE.type = ifelse(VE.type == "MVA-BN arthralgias","MVA-BN Arthralgias", VE.type)) %>% 
+   mutate(VE.type = ifelse(VE.type == "MVA-BN asthenia","MVA-BN Asthenia", VE.type))%>%
+  mutate(VE.type = ifelse(VE.type == "MVA-BN constitutional symptoms (fever, headaches, malaise, myalgia, chills, or lymphadenopathy)","MVA-BN constitutional symptoms*", VE.type))
+
+
+# Constitutional or general symptoms or LAD
+MVA_BN_severity_constitutional <- MVA_BN_severity%>%
+  filter(VE.type== "Any vaccine - Fever"|
+          VE.type== "Any vaccine - Lymphadenopathy"|
+           VE.type == "Any vaccine - Myalgia exhaustion"|
+           VE.type == "MVA-BN Abdominal pain"|
+           VE.type == "MVA-BN Arthralgias"|
+           VE.type == "MVA-BN Asthenia"|
+           VE.type == "MVA-BN axillary adenopathies"|
+           VE.type == "MVA-BN Chills"|
+           VE.type == "MVA-BN constitutional symptoms (fever, headaches, malasiae, myalgia, chills, or lymphadenopathy)"|
+           VE.type == "MVA-BN Fever"|
+           VE.type == "MVA-BN general symptoms"|
+           VE.type == "MVA-BN Headache"|
+           VE.type == "MVA-BN inguinal adenopathies"|
+           VE.type == "MVA-BN Lymphadenopathy"|
+           VE.type == "MVA-BN Malaise"|
+           VE.type == "MVA-BN Myalgia"|
+           VE.type == "MVA-BN myalgias, dysthermic sensation"|
+           VE.type == "MVA-BN Nausea/vomiting"|
+           VE.type == "MVA-BN polysymptomatic disease"|
+           VE.type == "MVA-BN Pruritus"|
+           VE.type =="MVA-BN constitutional symptoms*")
+
+
+
+#reorder factor
+MVA_BN_severity_constitutional$VE.type.f <- factor(MVA_BN_severity_constitutional$VE.type, 
+                                          levels = c(
+             "MVA-BN constitutional symptoms*",
+             "MVA-BN general symptoms",
+             "MVA-BN Fever",
+             "MVA-BN Chills",
+              "MVA-BN Malaise",
+              "MVA-BN Asthenia",
+              "MVA-BN Myalgia",
+            "MVA-BN myalgias, dysthermic sensation",
+            "MVA-BN Headache",
+            "MVA-BN Nausea/vomiting",
+            "MVA-BN Abdominal pain",
+           "MVA-BN Lymphadenopathy",
+            "MVA-BN axillary adenopathies",
+           "MVA-BN inguinal adenopathies",
+            "MVA-BN Arthralgias",
+           "MVA-BN Pruritus",
+           "MVA-BN polysymptomatic disease",
+           "Any vaccine - Fever",
+          "Any vaccine - Lymphadenopathy",
+           "Any vaccine - Myalgia exhaustion"))
+
+# create table
+knitr::kable(MVA_BN_severity_constitutional,col.names = gsub("[.]", " ",names(MVA_BN_severity_constitutional)))
+
+#severity non rash
+m.sev.c = metabin(Vaccinated.or.cases.event, 
+                n.vaccinated.or.cases, 
+                unvaccinated..or.controls.event, 
+                n.unvaccinated.or.controls, 
+                data=MVA_BN_severity_constitutional, 
+                byvar = VE.type.f,
+                studlab = paste(First.Author,"(",Year.Published,")") , 
+                comb.fixed = FALSE,  #don't have fixed effect b/c multiple levels
+                comb.random =TRUE,
+                method.tau = "PM", # Paule and Mandel method for binary outcomes
+                sm="OR")
+
+#update labels
+m.sev.c<- update( m.sev.c,
+         subgroup.name = m.sev.c$VE.type)
+
+forest(m.sev.c, 
+       sortvar = TE,
+              smlab = "OR (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors vaccination " , 
+       label.right = "Favors control" )
+
+n_distinct(MVA_BN_severity_constitutional$VE.type)
+n_distinct(MVA_BN_severity_constitutional$PMID)
+
+
+
+```
+
+
+number of unique VEs for constitutional : **`r  n_distinct(MVA_BN_severity_constitutional$VE.type)`**; 
+number of unique papers for constitutional : **`r n_distinct(MVA_BN_severity_constitutional$VE.type)`**
+
+```{r other_severity_mucosal, echo=FALSE, fig.width=10,fig.height=12, dpi=300}
+# Mucosal or other complications
+MVA_BN_severity_mucosal_other <- MVA_BN_severity%>%
+  filter( VE.type == "Any vaccine - Pharyngitis"|
+           VE.type == "any vaccine- bacterial secondary infection"|
+             VE.type == "MVA-BN Conjunctivitis"|
+            VE.type == "MVA-BN other symptoms"|
+            VE.type == "MVA-BN odynophagia"|
+             VE.type == "MVA-BN Proctitis"|           
+            VE.type == "MVA-BN Rectal bleeding"|
+           VE.type == "MVA-BN rectal discharge, anal pain"|
+           VE.type == "MVA-BN Rectal pain"|
+           VE.type == "MVA-BN Rectal symtpoms or abdominal pain (including bleeding, pus, proctitis, tenesmus)"|
+           VE.type == "MVA-BN Tenesmus"|
+             VE.type == "MVA-BN Pus in Stool"|
+           VE.type == "MVA-BN urethral exudate, dysuria"|
+            VE.type == "MVA-BN ocular rash"
+  )%>%
+  mutate(VE.type = ifelse(VE.type =="any vaccine- bacterial secondary infection", "Any vaccine- bacterial secondary infection", VE.type))%>% # clean
+  mutate(VE.type = ifelse(VE.type =="MVA-BN odynophagia", "MVA-BN Odynophagia",VE.type))%>%
+  mutate(VE.type = ifelse(VE.type =="MVA-BN rectal discharge, anal pain", "MVA-BN Rectal discharge, anal pain",VE.type))%>%
+    mutate(VE.type = ifelse(VE.type =="MVA-BN urethral exudate, dysuria", "MVA-BN Urethral exudate, dysuria",VE.type))%>%
+   mutate(VE.type = ifelse(VE.type =="MVA-BN Pus in Stool", "MVA-BN Pus in stool",VE.type))%>%
+    mutate(VE.type = ifelse(VE.type =="MVA-BN ocular rash", "MVA-BN Ocular rash",VE.type))
+
+
+#reorder factor
+MVA_BN_severity_mucosal_other$VE.type.f <- factor(MVA_BN_severity_mucosal_other$VE.type, 
+                                          levels = c("MVA-BN Conjunctivitis",
+                                                     "MVA-BN Ocular rash",
+              "Any vaccine - Pharyngitis",
+              "MVA-BN Odynophagia",
+              "Any vaccine- bacterial secondary infection",
+              "MVA-BN Rectal symtpoms or abdominal pain (including bleeding, pus, proctitis, tenesmus)",
+             "MVA-BN Rectal pain",
+              "MVA-BN Rectal discharge, anal pain",
+              "MVA-BN Rectal bleeding",
+              "MVA-BN Proctitis",
+              "MVA-BN Tenesmus",
+               "MVA-BN Pus in stool",
+              "MVA-BN Urethral exudate, dysuria",
+               "MVA-BN other symptoms"))
+          
+# create table
+knitr::kable(MVA_BN_severity_mucosal_other,col.names = gsub("[.]", " ",names(MVA_BN_severity_mucosal_other)))
+
+#severity non rash
+m.sev.m = metabin(Vaccinated.or.cases.event, 
+                n.vaccinated.or.cases, 
+                unvaccinated..or.controls.event, 
+                n.unvaccinated.or.controls, 
+                data=MVA_BN_severity_mucosal_other, 
+                byvar = VE.type.f,
+                studlab = paste(First.Author,"(",Year.Published,")") , 
+                comb.fixed = FALSE,  #don't have fixed effect b/c multiple levels
+                comb.random =TRUE,
+                method.tau = "PM", # Paule and Mandel method for binary outcomes
+                sm="OR")
+
+#update labels
+m.sev.m<- update( m.sev.m,
+         subgroup.name = m.sev.m$VE.type)
+
+forest(m.sev.m, 
+       sortvar = TE,
+              smlab = "OR (95% CI)",
+       prediction = FALSE , 
+       label.left = "Favors vaccination " , 
+       label.right = "Favors control" )
+
+
+            
+```
+
+number of unique VEs for mucosal : **`r  n_distinct(MVA_BN_severity_mucosal_other$VE.type)`**; 
+number of unique papers for mucosal : **`r n_distinct(MVA_BN_severity_mucosal_other$PMID)`**
+
+look up how polysmptomatic dx was defined again
+
+
+[ ] Jamard PMID had "any vaccine" for severity measures, of the 9 vaccinated individuals, 5 received 1 generation vaccines before 1984, 4 received 2 doses of MVA-BN
+
+[x]Morales # 302 delay in symptoms
+
+[ ]Morleas, "284" general symptoms, and 285 polysympmtomatic disesase
+
+[x]Faherty "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine affecting genitals" and "MVA-BN 2 doses/ACAM 2000 vs MVA-BN 1 dose or no vaccine occular"
+"Preliminary medical record review indicates that vaccinated patients experienced self-limited illness, managed in outpatient settings. Compared with patients who received 2 doses of JYNNEOS or 1 dose of ACAM2000 vaccine, patients who received 1 dose of JYNNEOS or no vaccines experienced a higher prevalence of lesions affecting the genital (43% versus 6%) and ocular (29% versus none) mucosa"
+
+
+[ ] Estevez severity 37373818
+
+[ ] Carungo rash difference 37328930 though type of vaccine given not clear-- exclude fo rnow
+
+#Route
+[x]ID  Deputy 2 dose (unable to calc as n too small) "29; Dalton "37"
+[x] SubQ Deputy 2 dose  (unable to calc as n too small)"30";Dalton "36"
+
+[x]heterologou Deputy 2 dose "31"; Dalton "38"
+[x]see how Deptuy 2 dose 
+[x]Ramchandar :340,341"
+
+
+# Age
+```{r age}
+MVA_BN_age <- MVA_BN_long %>%
+  filter(VE.type == "MVA-BN 1 dose >= 14 days since vaccination  less than 50 years old"|
+           VE.type == "MVA-BN 1 dose >= 7 days since vaccination  less than 50 years old"|
+           VE.type == "MVA-BN 1 dose 0-13 days since vaccination  less than 50 years old"|
+           VE.type == "MVA-BN 1 dose 0-6 days since vaccination  less than 50 years old"|
+           VE.type == "MVA-BN 1 dose any time less than 50 years old"|
+           VE.type == "MVA-BN HIV status >50 years old "|
+           VE.type == "1 dose MVA-BN  0-13 days ls 50 high coverage"|
+           VE.type == "1 dose MVA-BN low coverage ls 50 sensitivity"|
+           VE.type == "1 dose MVA-BN ls 50 sensitivity"|
+           VE.type == "1 dose MVA-BN 0-13 days ls 50"|
+           VE.type == "1 dose MVA-BN  0-13 days ls 50 high coverage"|
+           VE.type == "1 dose MVA-BN VE 0-13 days ls 50 low coverage"|
+           VE.type == "1 dose MVA-BN male 18-49 no prior ACAM2000"|
+           VE.type == "2 dose MVA-BN male 18-49 no prior ACAM2000"|
+           VE.type == "MVA-BN age 10 year increase"|
+           VE.type == "MVA-BN age 0-39"|
+           VE.type == "MVA-BN age >= 40"|
+           VE.type == "1 dose MVA-BN high coverage ls 50 sensitivity"|
+           VE.type == "1 dose MVA-BN 0-13 days ls 50"
+           )%>%
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+    "First.Author",
+    "Year.Published",
+    "VE.type",
+    "VE.outcome",
+    "Lower.CI",
+    "Upper.CI",
+    "Vaccinated.or.cases.event",
+    "n.vaccinated.or.cases",
+    "unvaccinated..or.controls.event",
+    "n.unvaccinated.or.controls")
+
+# create table
+knitr::kable(MVA_BN_age,col.names = gsub("[.]", " ",names(MVA_BN_age)))
+
+
+```
+
+number of unique VEs for age : **`r  n_distinct(MVA_BN_age$VE.type)`**; 
+number of unique papers for age : **`r n_distinct(MVA_BN_age$PMID)`**
+
+
+```{r sex, }
+
+MVA_BN_sex <- MVA_BN_long%>%
+  filter(VE.type== "2 dose MVA-BN male"|
+           VE.type == "2 dose MVA-BN male 18-49 no prior ACAM2000"|
+           VE.type == "1 dose MVA-BN male"|
+           VE.type == "1 dose MVA-BN male 18-49 no prior ACAM2000"|
+           VE.type == "MVA-BN male"|
+           VE.type == "MVA-BN female"
+         )%>%
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type",
+    "Vaccinated.or.cases.event":"n.unvaccinated.or.controls",
+         "VE.outcome":"Upper.CI")
+
+knitr::kable(MVA_BN_sex,col.names = gsub("[.]", " ",names(MVA_BN_sex)))
+
+```
+
+
+# IC or PLWH
+Deputy 2 dose no immune compromise "28"
+Dalton 2 dose IC "34" vs "35" 
+Brousseau 
+Morales  no prep, PLWH, no PLW 298-299
+Schildahaur stratified by HIV status info on hospitalizaiton on HIV 1 dose, 2 dose PEP, "246-248" and HIV negative 249-251 with similar results for HIV postive and negative infdividials. 
+Esquisiton
+
+```{r immunecompromised, }
+
+MVA_BN_IC <- MVA_BN_long%>%
+  filter(
+           VE.type == "1 dose MVA-BN immunocompromising condition"|
+           VE.type == "2 dose MVA-BN immunocompromising condition"|
+          VE.type==  "MVA-BN Immune compromising other than HIV/AIDS"|
+           VE.type == "MVA-BN 1 dose hospitalized HIV positive"|
+           VE.type =="MVA-BN 2 dose hospitalized  HIV positive"|
+           VE.type =="MVA-BN 2 dose hospitalized HIV negative"|
+           VE.type =="MVA-BN 1 dose PEP hospitalized HIV negative"|
+            VE.type == "MVA-BN 1 dose hospitalized HIV negative"|
+           VE.type =="MVA-BN 1 dose PEP hospitalized  HIV positive"|
+           VE.type == "MVA-BN 2 dose hospitalized HIV positive"|
+         VE.type == "MVA-BN 1 dose Infection Sub-Quest persons with HIV or taking PrEP"|
+           VE.type == "MVA-BN PLWH"|
+           VE.type == "MVA-BN HIV status"|
+           VE.type == "MVA-BN HIV status >50 years old"|
+           VE.type == "MVA-BN PEP infection HIV"|
+           VE.type == "MVA-BN 1 dose hospitalized HIV negative"|
+           VE.type == "MVA-BN 1 dose hospitalized HIV positive"|
+           VE.type == "MVA-BN PEP infection HIV"|
+           VE.type == "MVA-BN HIV prep user"|
+           VE.type == "MVA-BN non HIV prep user"|
+           VE.type == "MVA-BN PLWH"|
+           VE.type == "MVA-BN non PLWH"|
+           VE.type == "MVA-BN 2 dose hospitalized  HIV negative"|
+           VE.type == "MVA-BN 1 dose PEP hospitalized  HIV negative"
+         )%>%
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type",
+    "Vaccinated.or.cases.event":"n.unvaccinated.or.controls",
+         "VE.outcome":"Upper.CI")
+
+
+# create table 
+knitr::kable(MVA_BN_IC,col.names = gsub("[.]", " ",names(MVA_BN_IC)))
+
+
+
+```
+
+look up how IC condition is defiend
+
+
+
+#contact type
+```{r contact, }
+
+MVA_BN_non_IC <- MVA_BN_long%>%
+  filter(VE.type== "MVA-BN PEP all high risk contact"|
+           VE.type == "MVA-BN PEP contaminated material"|
+           VE.type == "MVA-BN PEP direct skin to skin"|
+           VE.type == "MVA-BN PEP health care worker"|
+           VE.type == "MVA-BN PEP household"|
+           VE.type == "MVA-BN PEP intense face to face"|
+           VE.type == "MVA-BN PEP sexual"|
+           VE.type == "MVA-BN PEP unspecified high risk"|
+           VE.type == "MVA-BN contact HCW"|
+           VE.type == "MVA-BN contact cohabitating sexual contact"|
+           VE.type == "MVA-BN contact houshold"|
+           VE.type == "MVA-BN contact non cohabitating sexual contact"|
+           VE.type == "MVA-BN contact nosocomial"|
+           VE.type == "MVA-BN contact social"
+           )%>%
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type",
+    "Vaccinated.or.cases.event":"n.unvaccinated.or.controls",
+         "VE.outcome":"Upper.CI")%>%
+  mutate(VE.outcome = as.numeric(VE.outcome))%>% # make numeric 
+  mutate(Lower.CI = as.numeric(Lower.CI))%>% # make numeric
+  mutate(Upper.CI = as.numeric(Upper.CI))# make numeric 
+
+
+# create table
+knitr::kable(MVA_BN_IC,col.names = gsub("[.]", " ",names(MVA_BN_IC)))
+```
+
+
+
+```{r duration, }
+
+MVA_BN_time <- MVA_BN_long%>%
+  filter(VE.type== "MVA-BN delay symptoms"|
+           VE.type == "MVA-BN ITT delay symptoms"|
+           VE.type == "MVA-BN duration rash, days"|
+           VE.type == "MVA-BN timing"|
+           VE.type == "Any vaccine - Total duration symptoms"|
+           VE.type == "MVA-BN days between onset of symptoms and skin lesions"
+           )%>%
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type",
+    "Vaccinated.or.cases.event":"n.unvaccinated.or.controls",
+         "VE.outcome":"Upper.CI")%>%
+  mutate(VE.outcome = as.numeric(VE.outcome))%>% # make numeric 
+  mutate(Lower.CI = as.numeric(Lower.CI))%>% # make numeric
+  mutate(Upper.CI = as.numeric(Upper.CI))# make numeric 
+
+
+# create table
+knitr::kable(MVA_BN_time,col.names = gsub("[.]", " ",names(MVA_BN_time)))
+```
+
+
+
+```{r subQ_ID, }
+
+MVA_BN_non_IC <- MVA_BN_long%>%
+  filter(VE.type== "2 dose MVA-BN subcutaneous"|
+           VE.type == "2 dose MVA-BN intradermal"|
+           VE.type == "2 dose MVA-BN heterogenous administration"|
+           VE.type == "1 dose MVA-BN subcutaneous"|
+           VE.type == "1 dose MVA-BN intradermal"
+           )%>%
+  select("Effect.Measure.v.descriptive",
+    "PMID",
+         "First.Author",
+         "Year.Published",
+         "VE.type",
+    "Vaccinated.or.cases.event":"n.unvaccinated.or.controls",
+         "VE.outcome":"Upper.CI")%>%
+  mutate(VE.outcome = as.numeric(VE.outcome))%>% # make numeric 
+  mutate(Lower.CI = as.numeric(Lower.CI))%>% # make numeric
+  mutate(Upper.CI = as.numeric(Upper.CI))# make numeric 
+
+
+# create table for 1 dose MVA_BN
+knitr::kable(MVA_BN_IC,col.names = gsub("[.]", " ",names(MVA_BN_IC)))
+
+```
+
+
+```{r 95_CI_calc, include=FALSE}
+# #Data preparation 
+# #Get 95% CI for Jezeck 1988
+# 
+# event.e = c(0.04, 0.07)
+# n.e = c( 10000-0.04,10000-0.07)
+# event.c = c(1.7, 2.58)
+# n.c = c( 10000-1.7,10000-2.58)
+# 
+# m.inc <- metabin(event.e = event.e, n.e = n.e, event.c = event.c, n.c = n.c,
+#                       method = "MH", sm = "RR")
+# 
+# print(m.inc) 
+# forest(m.inc, 
+#        prediction = TRUE , 
+#        label.left = "Unvaccinated" , 
+#        label.right = "Vaccine effectiveness",
+#        leftlabs = c("Study", "VE", "SE"))
+# 
+# 80-56
+# # Likos 2005 get RR
+# 
+# #death  DRC
+# Likos2005_death_DRC <-
+#   matrix(c(1,2,43,79),
+#          nrow =2,
+#          dimnames = list(exposure = c("vax", "unvax"),
+#                          outcome = c("outcome", "No_out")))
+# 
+# Likos2005_death_DRC
+# 
+# fisher.test(Likos2005_death_DRC, alternative = "two.sided")# 0.9192135, 95%CI ( 0.01522644 18.12196071)
+# 
+# #greater than 100 lesions DRC
+# Likos2005_gr100_DRC <- 
+#   matrix(c(20,56,24,24),
+#          nrow =2,
+#          dimnames = list(exposure = c("vax", "unvax"),
+#                          outcome = c("outcome", "No_out")))
+# Likos2005_gr100_DRC
+# fisher.test(Likos2005_gr100_DRC, alternative = "two.sided") # 0.3603508 (95% CI 0.1554508 0.8199092)
+# 
+# # Hosp DRC
+# Likos2005_hosp <-
+#   matrix(c(15,34,29,46),
+#          nrow =2,
+#          dimnames = list(exposure = c("vax", "unvax"),
+#                          outcome = c("outcome", "No_out")))
+# 
+# Likos2005_hosp
+# 
+# fisher.test(Likos2005_hosp, alternative = "two.sided") #  0.7018051  (95% CI 0.300260 1.599254)
+# 
+# # Severe DRC
+# Likos2005_severe <-
+#   matrix(c(9,26,35,54),
+#          nrow =2,
+#          dimnames = list(exposure = c("vax", "unvax"),
+#                          outcome = c("outcome", "No_out")))
+# 
+# Likos2005_severe
+# 
+# fisher.test(Likos2005_severe, alternative = "two.sided") #  0.5366781  (95% CI  0.300260 1.599254)
+# 
+# # secondary DRC
+# Likos2005_sec<-
+#   matrix(c(19,20,25,60),
+#          nrow =2,
+#          dimnames = list(exposure = c("vax", "unvax"),
+#                          outcome = c("outcome", "No_out")))
+# 
+# Likos2005_sec
+# 
+# fisher.test(Likos2005_sec, alternative = "two.sided") #  0.5366781  (95% CI  0.300260 1.599254)
+# 
+# #greater than 100 lesions US
+# Likos2005_gr100_US <-
+#   matrix(c(0,3,10,23),
+#          nrow =2,
+#          dimnames = list(exposure = c("vax", "unvax"),
+#                          outcome = c("outcome", "No_out")))
+# 
+# Likos2005_gr100_US
+# 
+# fisher.test(Likos2005_gr100_US, alternative = "two.sided") # 0.3603508 (95% CI 0.1554508 0.8199092)
+# 
+# #HospitalizedUS
+# Likos2005_hosp_US <-
+#   matrix(c(4,10,6,16),
+#          nrow =2,
+#          dimnames = list(exposure = c("vax", "unvax"),
+#                          outcome = c("outcome", "No_out")))
+# 
+# Likos2005_hosp_US
+# 
+# fisher.test(Likos2005_hosp_US, alternative = "two.sided") # 1.064749 (95% CI  0.174869 5.899001)
+# 
+# 
+# #Nolen ASTMH Con log regression
+# 
+# data <-
+#   matrix(c(10,51,16,37),
+#          nrow =2)
+# colnames(data)<- c("case", "cont")
+# data <- as.data.frame(data)
+# 
+# data1 <-
+#   matrix(c(10,16,51,37),
+#          nrow =2,
+#          dimnames = list(outcome = c("case", "cont"),
+#                          exposure = c("vax", "unvax")))
+# 
+# 
+#  
+# fit.clr <- clogit(case ~ cont, data = data)
+#  
+# data$case
+
+# # Dou 2023
+# #HospitalizedUS
+# Dou2023_sy <-
+#   matrix(c(1,2,2,32),
+#          nrow =2,
+#          dimnames = list(exposure = c("vax", "unvax"),
+#                          outcome = c("outcome", "No_out")))
+# 
+# Dou2023_sy
+# 
+# fisher.test(Dou2023_sy, alternative = "two.sided") # 1.064749 (95% CI  0.174869 5.899001)
+#  
+# 
+# program <- c('vax ', 'No vax')
+# outcome <- c('hosp', 'no hosp')
+# data <- matrix(c(1,2,6,2), nrow=2, ncol=2, byrow=TRUE)
+# dimnames(data) <- list('Vaccine Status'=program, 'Outcome'=outcome)
+# 
+# #view matrix
+# data
+# 
+# oddsratio(data)
+# 
+# # Van_Ewijk SAR
+# #PEP all high risk 
+# mpox_vac <- 16
+# mpox_unvac <- 2
+# n_vac <- 218
+# n_unvac <- 38
+# 
+# SAR <- (mpox_vac/n_vac)/(mpox_unvac/n_unvac)
+# SAR
+# VE <- -1 +1/SAR
+# VE #-.283
+# 
+# # disease needs to be in R colum for epitools
+# RRtable<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# RRtable 
+# 
+# # riskratio.wald(RRtable) #wrong, using epitools, diseases and non diseiase table switched
+# 
+# epi.2by2(RRtable, method = "cohort.count") #1.39 (0.33, 5.82)
+# 
+# upper.CI <- 1-.33
+# upper.CI #0.67
+# 
+# lower.CI <- -1+ 1/5.82
+# lower.CI #-0.8281787
+# 
+# 
+# #PEP sexual 
+# mpox_vac <- 12
+# mpox_unvac <- 1
+# n_vac <- 88
+# n_unvac <- 13
+# 
+# # disease needs to be in R column for epitools
+# RRtable<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# RRtable 
+# 
+# # riskratio.wald(RRtable) #wrong, using epitools, diseases and non dx table switched
+# 
+# epi.2by2(RRtable, method = "cohort.count")
+# 
+# VE <-1 -1/1.77
+# VE #-0.77
+# 
+# upper.CI <- 1-0.25
+# upper.CI #0.75
+# 
+# lower.CI <- -1+ 1/12.52
+# lower.CI #-0.9201278
+# 
+# #PEP direct skin to skin 
+# mpox_vac <- 4
+# mpox_unvac <- 1
+# n_vac <- 79
+# n_unvac <- 7
+# 
+# RRtable<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# RRtable 
+# 
+# # riskratio.wald(RRtable) #wrong, using epitools, diseases and non dx table switched
+# 
+# epi.2by2(RRtable, method = "cohort.count")
+# 
+# VE <- 1 -0.35 
+# VE #0.65
+# 
+# upper.CI <- 1-0.05
+# upper.CI #0.95
+# 
+# lower.CI <- -1+ 1/2.75
+# lower.CI #-0.6363636
+# 
+# #reminaing for van Ewijk had no events either type of contact 
+#             
+
+# #Eustaquio HIV > 50
+# mpox_vac <- 60
+# mpox_unvac <- 492 
+# n_vac <- 97
+# n_unvac <- 737
+# 
+# table<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# table
+# 
+# epi.2by2(table, method = "cohort.count")
+# 
+# 
+# 
+# #Eustaquio IC other than HIV
+# mpox_vac <- 13
+# mpox_unvac <-  172
+# n_vac <- 87
+# n_unvac <- 1142
+# 
+# table<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# table
+# 
+# epi.2by2(table, method = "cohort.count")
+# 
+# 
+# #Eustaquio constitutuional
+# mpox_vac <- 74
+# mpox_unvac <- 1320
+# n_vac <- 114
+# n_unvac <- 1623
+# 
+# table<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# table
+# 
+# epi.2by2(table, method = "cohort.count")
+# 
+# 
+# #Eustaquio rash
+# mpox_vac <- 123
+# mpox_unvac <- 1928
+# n_vac <- 131 
+# n_unvac <- 1973
+# 
+# 
+# table<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# table
+# 
+# epi.2by2(table, method = "cohort.count")
+# 
+# 
+# #Eustaquio puritius
+# mpox_vac <- 41
+# mpox_unvac <-  489 
+# n_vac <- 93
+# n_unvac <- 860
+# 
+# 
+# table<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# table
+# 
+# epi.2by2(table, method = "cohort.count")
+# 
+# 
+# #Eustaquio rectal or abd pain
+# mpox_vac <- 43
+# mpox_unvac <- 451
+# n_vac <- 100
+# n_unvac <- 1242
+# 
+# 
+# table<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# table
+# 
+# epi.2by2(table, method = "cohort.count")
+# 
+# #Eustaquio hosp
+# mpox_vac <- 2
+# mpox_unvac <- 163
+# n_vac <- 162
+# n_unvac <- 2044
+# 
+# 
+# table<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# table
+# 
+# epi.2by2(table, method = "cohort.count")
+# #NAs
+# 
+# 
+# 
+# #Eustaquio death
+# mpox_vac <- 0
+# mpox_unvac <- 5
+# n_vac <- 100
+# n_unvac <- 1648
+# 
+# 
+# table<-matrix(c(mpox_vac,mpox_unvac,n_vac-mpox_vac,n_unvac-mpox_unvac),nrow = 2, ncol = 2)
+# table
+# 
+# epi.2by2(table, method = "cohort.count")
+# #NAs
+
+```
+[ ] 
+#contact studies
+van Ewijk"496" for PLW of taking PrEP 1 dose> = 14 days VE was 5- (95% CI -71 to 85%) (compared with primary analysis 65 (95% CI 1-87))
+Morales sexual cohobitating and non cohabitatin contact 294,295
+
+Any vaccine:
+Garcia-hernandez 37017138
+Higgins 37516243
+
+[ ] duration of symtpoms:
+any vaccine Kroger #158
+
+Timing 
+
+#PEP: 
+[ ] 
+General symptoms, contact, specific symptoms, delay in lesions: Morales 37318762 
+Case series: Adler 35623380,  N lesions 
+
+#2 dose/ACAM2000 vs 1 dose :
+Faherty 37347713
+
+[ ] #Breakthrough
+Factors associated with breakthrough through Merad PMID 36695469
+Faherty 
+
+
+Bias:
+For bias use robvis package (but not using that scale), so just report quality 
+
+# Sensitivity
+PEP: remove morales since not clear how imortal time bias accounted for
+
+PEP Rosen 488, 489 as different VE, not sure to include since increases VE
+
+"MVA-BN PEP ITT including patients not vaccinated 2/2 symptoms as vaccianted"
+"MVA-BN PEP ITT including patients not vaccinated 2/2 symptoms as vaccianted not accounting for follow up time"
+"MVA-BN PEP Landmark approach, exlcuding ended follow up before the 7th day and initial follow up time"
+
+"1 dose MVA-BN 50% no date"
+"1 dose MVA-BN 100% no date"
+
+"1 dose MVA-BN 0-13 days
+1 dose MVA-BN 0-13 days high coverage
+1 dose MVA-BN 0-13 days low coverage
+1 dose MVA-BN 0-13 days ls 50
+1 dose MVA-BN 0-13 days ls 50 high coverage
+1 dose MVA-BN VE 0-13 days ls 50 low coverage"
+
+use lowest central effect estimate of provided sensitivity analysis
+use "301" for Morales instead of "279"
+for Bertran 1 dose use "1 dose MVA-BN low coverage ls 50 sensitivity"
+and Bertran "1 dose MVA-BN VE 0-13 days ls 50 low coverage " for 0-13 days after 1st dose
+Morales 477-479 37616117 use hazard ratios 176 ,177 instead of IRR
+Arbel 37819966 descriptive 
+Payne b use 
+remove Ghosn 228 since unclear number of doses 
+Brousseau -sensitivity for 1 dose and severity based on data used e.g subquest but only with survey data
+Morales change MVA-BN to MVA-BN to ITT # 477-479
+
+
+for 2 dose change out Rosbenberg to "42" which is 1 dose and 2 dose 
+
+Hospitalization: revmoe Higgins since based on so few events and SOT patients:
+
+
+#discussion
+Lack of studies of 3rd generation vaccines in areas with historic mpox endemicity nd 
+can include  in discussion (published after last pull)
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10673392/
+information on childhood vacciantion 
+standardized measure of severity score commonly reported
+duration of immunity and breakthough Faherty 
+
+ass noted by Fontan-vela ". The greatest difficulty for VE studies has been the lack of a sampling frame of the population targeted for vaccination, which is needed to identify groups with similar risk of mpox virus (MPXV) infection independently of the probability of receiving MVA-BN vaccination." PMID37864849
+
+
+#notes to self:
+Ramchandani 2023 has info of infection re administration type, could calculate an unadjusted  VE?
+add study descriptions to tables
+is there another Isreal study we should have?
+good guide: https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10020204/
+should I include prediction intervals
+-add updated Ghosn https://www.natap.org/2023/CROI/croi_69.htm
+- for van Ewijk can use hmisc R package to calc SAR with biomial CI :https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7665336/
+-help fies: https://cran.r-project.org/web/packages/forestploter/vignettes/forestploter-post.html
+
+review 
+https://www.ncbi.nlm.nih.gov/pmc/articles/PMC10674429/
