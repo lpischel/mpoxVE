@@ -1,6 +1,6 @@
 ---
 title: "MetaAnalysis Mpox Vaccine effectivness- preliminary analysis"
-author: "Lauren Pischel, Mahder Tracy, Brett Martini, Kolambi Kharbanda, David Cacesse, Nattall Yu, Amyn Malik, Noureen Ahmed, Kavin Patel, George Goshua, Alyssa Grimshaw, Saad B Omer"
+author: "Lauren Pischel, Mahder Tracy, Brett Martini, Kolambi Kharbanda, David Cacesse, Nattall Yu, Amyn Malik, Noureen Ahmed, Kavin M Patel, George Goshua, Alyssa Grimshaw, Saad B Omer"
 date: "2024-02-27"
 output:
   html_document:
@@ -32,7 +32,9 @@ library(survival)
 library(knitr)
 library(epitools)
 library(epiR)
+
 ```
+
 
 
 ```{r, include=FALSE}
