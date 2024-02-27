@@ -8,7 +8,7 @@ Here we wish to estimate the vaccine effeciveness (VE) of vaccines with efficacy
 
 * MVA_BN.csv is used for paper summary info
 * MVA_BN_long.csv is used for individual VE information
-* Case_Cont_NOS.csv, Cohort_NOS.csv, Cross_sect_NOS.csv provide Newcastle Ottawa quality assessments and are provided for reference but not used in the code3
+* Case_Cont_NOS.csv, Cohort_NOS.csv, Cross_sect_NOS.csv provide Newcastle Ottawa quality assessments and are provided for reference but not used in the code.
 
 ## Getting Started
 
