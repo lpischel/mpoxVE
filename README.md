@@ -4,19 +4,18 @@ Vaccine effectiveness of 3rd generation Orthopoxvirus vaccines against mpox infe
 
 ## Description
 
-An in-depth paragraph about your project and overview of use.
+Here we wish to estimate the vaccine effeciveness (VE) of vaccines with efficacy against mpox. Here we provide the code to estimate for VE of 3rd generation vaccines and subseuqent quality assessment. Inforamtion for first generation vaccines has also been extrated but code has been "#" out so the code does not run.
 
 ## Getting Started
 
 ### Dependencies
 
-* Describe any prerequisites, libraries, OS version, etc., needed before installing program.
-* ex. Windows 10
+* R/RStudio
+* packages: meta, metafor, metasens, tidyverse, survival, kniter, epitools, epiR
 
 ### Installing
 
-* How/where to download your program
-* Any modifications needed to be made to files/folders
+* 
 
 ### Executing program
 
@@ -26,12 +25,6 @@ An in-depth paragraph about your project and overview of use.
 code blocks for commands
 ```
 
-## Help
-
-Any advise for common problems or issues.
-```
-command to run if program contains helper info
-```
 
 ## Authors
 
